@@ -38,8 +38,8 @@ const userSchema = new Schema(
         },
         role: {
             type: String,
-            enum: ['citizen', 'admin', 'officer', 'SUPER_ADMIN', 'ROAD_ADMIN', 'FINANCE_OFFICER', 'INSPECTION_OFFICER', 'CONTRACTOR', 'TECHNICIAN', 'CITIZEN'],
-            default: 'CITIZEN'
+            enum: ['citizen', 'admin', 'officer', 'SUPER_ADMIN', 'ROAD_ADMIN', 'FINANCE_OFFICER', 'INSPECTION_OFFICER', 'CONTRACTOR', 'TECHNICIAN', 'CITIZEN', 'ADMIN', 'ROAD_OFFICER', 'CUSTOMER'],
+            default: 'CUSTOMER'
         },
         googleId: {
             type: String,

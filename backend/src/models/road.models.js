@@ -144,18 +144,34 @@ const roadSchema = new Schema(
         status: {
             type: String,
             enum: [
-                "PLANNED",
+                "OPEN",
+                "PARTIALLY_CLOSED",
+                "CLOSED",
                 "UNDER_CONSTRUCTION",
+                "UNDER_MAINTENANCE",
+                "PLANNED",
                 "ACTIVE",
                 "UNDER_INSPECTION",
-                "UNDER_MAINTENANCE",
+                "TEMPORARILY_CLOSED",
                 "DAMAGED",
                 "REHABILITATION",
                 "RECONSTRUCTION",
                 "RETIRED",
             ],
-            default: "ACTIVE",
+            default: "OPEN",
             index: true,
+        },
+
+        // Road Closure & Diversion details
+        closureDetails: {
+            isClosed: { type: Boolean, default: false },
+            closureStartDate: Date,
+            expectedReopeningDate: Date,
+            reason: { type: String, default: "" },
+            affectedArea: { type: String, default: "" },
+            diversionRouteDescription: { type: String, default: "" },
+            trafficImpact: { type: String, enum: ["LOW", "MEDIUM", "HIGH"], default: "MEDIUM" },
+            constructionProgress: { type: Number, default: 0 },
         },
 
         // Factual Citizen Interaction Metrics

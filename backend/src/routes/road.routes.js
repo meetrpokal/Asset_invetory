@@ -8,6 +8,7 @@ import {
     getRoadById,
     updateRoad,
     updateRoadLifecycle,
+    updateRoadClosure,
     deleteRoad,
     seedDemoData,
 } from "../controllers/road.controllers.js";
@@ -23,6 +24,7 @@ router.post("/", verifyJWT, createRoad);
 router.get("/:id", verifyJWT, getRoadById);
 router.put("/:id", verifyJWT, updateRoad);
 router.put("/:id/lifecycle", verifyJWT, updateRoadLifecycle);
+router.put("/:id/closure", verifyJWT, updateRoadClosure);
 router.delete("/:id", verifyJWT, deleteRoad);
 
 export default router;

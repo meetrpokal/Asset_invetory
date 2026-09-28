@@ -50,7 +50,12 @@ const queryClient = new QueryClient();
 // Component to redirect to appropriate complaint page based on role
 function ComplaintRouter() {
   const user = useSelector((state) => state.auth.user);
-  const role = user?.role || 'citizen';
+  let rawRole = (user?.role || 'citizen').toLowerCase();
+  
+  let role = 'citizen';
+  if (rawRole === 'admin') role = 'admin';
+  else if (rawRole === 'road_officer' || rawRole === 'officer') role = 'officer';
+  else if (rawRole === 'contractor') role = 'contractor';
   
   if (role === 'officer') {
     return <OfficerComplaint />;
@@ -96,7 +101,11 @@ function RoleProtectedRoute({ children, allowedRoles = ['citizen', 'officer'] })
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
-  const role = user?.role || 'citizen';
+  let rawRole = (user?.role || 'citizen').toLowerCase();
+  let role = 'citizen';
+  if (rawRole === 'admin') role = 'admin';
+  else if (rawRole === 'road_officer' || rawRole === 'officer') role = 'officer';
+  else if (rawRole === 'contractor') role = 'contractor';
   
   if (!allowedRoles.includes(role)) {
     // Redirect to appropriate home based on role
@@ -201,6 +210,38 @@ function App() {
             <Route path="/government-dashboard" element={<SuperAdminDashboard />} />
             <Route path="/contractor-dashboard" element={<ContractorDashboard />} />
             <Route path="/citizen-dashboard" element={<CitizenDashboard />} />
+
+            {/* ========== ADMIN ROLE ROUTES ========== */}
+            <Route path="/admin/dashboard" element={<SuperAdminDashboard />} />
+            <Route path="/admin/roads" element={<RoadList />} />
+            <Route path="/admin/issues" element={<OfficerComplaint />} />
+            <Route path="/admin/inspections" element={<InspectionsList />} />
+            <Route path="/admin/maintenance" element={<MaintenanceList />} />
+            <Route path="/admin/contractors" element={<ContractorsList />} />
+            <Route path="/admin/closures" element={<CitizenDashboard />} />
+            <Route path="/admin/analytics" element={<OfficerAnalytics />} />
+            <Route path="/admin/map" element={<Home />} />
+
+            {/* ========== ROAD OFFICER ROLE ROUTES ========== */}
+            <Route path="/officer/dashboard" element={<SuperAdminDashboard />} />
+            <Route path="/officer/roads" element={<RoadList />} />
+            <Route path="/officer/issues" element={<OfficerComplaint />} />
+            <Route path="/officer/inspections" element={<InspectionsList />} />
+            <Route path="/officer/maintenance" element={<MaintenanceList />} />
+            <Route path="/officer/map" element={<Home />} />
+
+            {/* ========== CONTRACTOR ROLE ROUTES ========== */}
+            <Route path="/contractor/dashboard" element={<ContractorDashboard />} />
+            <Route path="/contractor/work-orders" element={<MaintenanceList />} />
+            <Route path="/contractor/projects" element={<RoadProjectsList />} />
+
+            {/* ========== CUSTOMER / CITIZEN ROLE ROUTES ========== */}
+            <Route path="/customer/dashboard" element={<CitizenDashboard />} />
+            <Route path="/customer/roads" element={<RoadList />} />
+            <Route path="/customer/report-issue" element={<Complaint />} />
+            <Route path="/customer/my-issues" element={<Complaint />} />
+            <Route path="/customer/closures" element={<CitizenDashboard />} />
+            <Route path="/customer/map" element={<Home />} />
 
             {/* ========== ROAD PLATFORM SPECIFIC ROUTES ========== */}
             <Route path="/roads" element={<RoadList />} />

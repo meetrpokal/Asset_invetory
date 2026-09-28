@@ -456,6 +456,51 @@ export const updateRoadLifecycle = asyncHandler(async (req, res) => {
     });
 });
 
+export const updateRoadClosure = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { isClosed, closureStartDate, expectedReopeningDate, reason, affectedArea, diversionRouteDescription } = req.body;
+
+    const road = await Road.findById(id);
+    if (!road) {
+        throw new ApiError(404, "Road Asset not found");
+    }
+
+    road.closureDetails = {
+        isClosed: !!isClosed,
+        closureStartDate: closureStartDate ? new Date(closureStartDate) : new Date(),
+        expectedReopeningDate: expectedReopeningDate ? new Date(expectedReopeningDate) : null,
+        reason: reason || "",
+        affectedArea: affectedArea || "",
+        diversionRouteDescription: diversionRouteDescription || "",
+    };
+
+    if (isClosed) {
+        road.status = "TEMPORARILY_CLOSED";
+    } else if (road.status === "TEMPORARILY_CLOSED") {
+        road.status = "ACTIVE";
+    }
+
+    road.updatedBy = req.user?._id;
+    await road.save();
+
+    await RoadLifecycleHistory.create({
+        roadId: road._id,
+        eventType: isClosed ? "ROAD_CLOSED" : "ROAD_REOPENED",
+        performedBy: req.user?._id,
+        description: isClosed
+            ? `Road marked TEMPORARILY_CLOSED. Reason: ${reason}. Diversion: ${diversionRouteDescription}`
+            : `Road reopened for public transit.`,
+        previousStatus: isClosed ? "ACTIVE" : "TEMPORARILY_CLOSED",
+        newStatus: road.status,
+    });
+
+    res.status(200).json({
+        success: true,
+        message: isClosed ? "Road closure announced and diversion route saved." : "Road reopened successfully.",
+        data: road,
+    });
+});
+
 export const deleteRoad = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const road = await Road.findById(id);
@@ -908,17 +953,208 @@ export const seedDemoData = asyncHandler(async (req, res) => {
         ]);
     }
 
+    // 12. Create 8 Realistic Demo Roads for Area-wise Road Status
+    const demoRoadsList = [
+        {
+            roadId: "RD-2001",
+            roadCode: "ROAD-AHM-2001",
+            name: "University Road",
+            description: "Main connecting corridor passing Gujarat University.",
+            area: "Vastrapur",
+            city: "Ahmedabad",
+            status: "OPEN",
+            condition: "EXCELLENT",
+            healthStatus: "HEALTHY",
+            length: 3.5,
+            lanes: 4,
+            coordinates: [72.5320, 23.0360],
+        },
+        {
+            roadId: "RD-2002",
+            roadCode: "ROAD-AHM-2002",
+            name: "ABC Road",
+            description: "Commercial stretch undergoing full asphalt resurfacing.",
+            area: "Vastrapur",
+            city: "Ahmedabad",
+            status: "CLOSED",
+            condition: "POOR",
+            healthStatus: "WARNING",
+            length: 2.4,
+            lanes: 4,
+            coordinates: [72.5350, 23.0390],
+            closureDetails: {
+                isClosed: true,
+                closureStartDate: new Date("2026-09-25"),
+                expectedReopeningDate: new Date("2026-10-05"),
+                reason: "Road Resurfacing",
+                affectedArea: "Vastrapur Lake Junction to Alpha Mall Turn",
+                diversionRouteDescription: "XYZ Road",
+                trafficImpact: "HIGH",
+                constructionProgress: 65,
+            },
+        },
+        {
+            roadId: "RD-2003",
+            roadCode: "ROAD-AHM-2003",
+            name: "XYZ Road",
+            description: "Feeder road with single-lane restriction due to deep drainage trenching.",
+            area: "Vastrapur",
+            city: "Ahmedabad",
+            status: "PARTIALLY_CLOSED",
+            condition: "FAIR",
+            healthStatus: "WARNING",
+            length: 1.8,
+            lanes: 2,
+            coordinates: [72.5380, 23.0420],
+            closureDetails: {
+                isClosed: true,
+                closureStartDate: new Date("2026-09-27"),
+                expectedReopeningDate: new Date("2026-09-30"),
+                reason: "Drainage Work",
+                affectedArea: "Eastbound lane near Block B",
+                diversionRouteDescription: "Service Lane 1",
+                trafficImpact: "MEDIUM",
+                constructionProgress: 80,
+            },
+        },
+        {
+            roadId: "RD-2004",
+            roadCode: "ROAD-AHM-2004",
+            name: "SG Highway Road",
+            description: "High-density 6-lane express corridor in prime IT hub.",
+            area: "Bodakdev",
+            city: "Ahmedabad",
+            status: "OPEN",
+            condition: "GOOD",
+            healthStatus: "HEALTHY",
+            length: 12.0,
+            lanes: 6,
+            coordinates: [72.5100, 23.0450],
+        },
+        {
+            roadId: "RD-2005",
+            roadCode: "ROAD-AHM-2005",
+            name: "College Road",
+            description: "Student corridor undergoing localized pothole repair.",
+            area: "Navrangpura",
+            city: "Ahmedabad",
+            status: "UNDER_MAINTENANCE",
+            condition: "FAIR",
+            healthStatus: "WARNING",
+            length: 2.0,
+            lanes: 2,
+            coordinates: [72.5500, 23.0300],
+            closureDetails: {
+                isClosed: false,
+                closureStartDate: new Date("2026-09-24"),
+                expectedReopeningDate: new Date("2026-09-29"),
+                reason: "Pothole Repair",
+                affectedArea: "Navrangpura Bus Stand Circle",
+                diversionRouteDescription: "University Lane",
+                trafficImpact: "LOW",
+                constructionProgress: 40,
+            },
+        },
+        {
+            roadId: "RD-2006",
+            roadCode: "ROAD-AHM-2006",
+            name: "Main Market Road",
+            description: "Busy market road closed for new RCC road construction.",
+            area: "Satellite",
+            city: "Ahmedabad",
+            status: "CLOSED",
+            condition: "POOR",
+            healthStatus: "CRITICAL",
+            length: 3.1,
+            lanes: 4,
+            coordinates: [72.5200, 23.0200],
+            closureDetails: {
+                isClosed: true,
+                closureStartDate: new Date("2026-09-20"),
+                expectedReopeningDate: new Date("2026-10-10"),
+                reason: "Road Construction",
+                affectedArea: "Satellite Police Station to Shivranjani Crossroads",
+                diversionRouteDescription: "Outer Bypass",
+                trafficImpact: "HIGH",
+                constructionProgress: 50,
+            },
+        },
+        {
+            roadId: "RD-2007",
+            roadCode: "ROAD-AHM-2007",
+            name: "Ring Road",
+            description: "Outer perimeter ring road with smooth transit.",
+            area: "Paldi",
+            city: "Ahmedabad",
+            status: "OPEN",
+            condition: "GOOD",
+            healthStatus: "HEALTHY",
+            length: 15.2,
+            lanes: 6,
+            coordinates: [72.5600, 23.0100],
+        },
+        {
+            roadId: "RD-2008",
+            roadCode: "ROAD-AHM-2008",
+            name: "Station Road",
+            description: "Railway station approach road undergoing lane expansion.",
+            area: "Maninagar",
+            city: "Ahmedabad",
+            status: "PARTIALLY_CLOSED",
+            condition: "FAIR",
+            healthStatus: "WARNING",
+            length: 2.8,
+            lanes: 4,
+            coordinates: [72.6000, 22.9900],
+            closureDetails: {
+                isClosed: true,
+                closureStartDate: new Date("2026-09-22"),
+                expectedReopeningDate: new Date("2026-10-15"),
+                reason: "Road Expansion",
+                affectedArea: "Maninagar Station Gate 1 to Kankaria Flyover",
+                diversionRouteDescription: "Substation Lane",
+                trafficImpact: "MEDIUM",
+                constructionProgress: 35,
+            },
+        },
+    ];
+
+    for (const rData of demoRoadsList) {
+        let existing = await Road.findOne({ roadId: rData.roadId });
+        if (!existing) {
+            await Road.create({
+                roadId: rData.roadId,
+                roadCode: rData.roadCode,
+                name: rData.name,
+                description: rData.description,
+                startLocation: { name: `${rData.area} Entry`, coordinates: rData.coordinates },
+                endLocation: { name: `${rData.area} Exit`, coordinates: [rData.coordinates[0] + 0.005, rData.coordinates[1] + 0.005] },
+                location: { type: "Point", coordinates: rData.coordinates },
+                geometry: {
+                    type: "LineString",
+                    coordinates: [rData.coordinates, [rData.coordinates[0] + 0.005, rData.coordinates[1] + 0.005]]
+                },
+                length: rData.length,
+                width: 12.0,
+                lanes: rData.lanes,
+                area: rData.area,
+                city: rData.city,
+                state: "Gujarat",
+                contractorId: contractor._id,
+                condition: rData.condition,
+                healthStatus: rData.healthStatus,
+                status: rData.status,
+                closureDetails: rData.closureDetails || { isClosed: false },
+                createdBy: admin._id,
+            });
+        }
+    }
+
     res.status(200).json({
         success: true,
-        message: "Hackathon demo data seeded successfully for Road RD-1024!",
+        message: "8 Realistic Demo Roads for Area-wise Road Status Seeded!",
         data: {
-            roadId: road.roadId,
-            roadDbId: road._id,
-            roadName: road.name,
-            projectProposalId: project.proposalId,
-            tenderId: tender.tenderId,
-            contractorName: contractor.companyName,
-            maintenanceId: maintenance.maintenanceId,
+            totalRoadsSeeded: 8,
         },
     });
 });

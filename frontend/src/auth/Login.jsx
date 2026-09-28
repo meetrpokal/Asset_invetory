@@ -64,14 +64,22 @@ export default function Login() {
 
                 toast.success('Login successful!');
                 
-                // console.log("This is the user here: ", res.data.data.user.role);
+                const userRole = (res.data.data.user?.role || "").toUpperCase();
+                let targetDashboard = "/";
+                if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
+                    targetDashboard = "/admin/dashboard";
+                } else if (userRole === "ROAD_OFFICER" || userRole === "OFFICER" || userRole === "INSPECTION_OFFICER") {
+                    targetDashboard = "/officer/dashboard";
+                } else if (userRole === "CONTRACTOR") {
+                    targetDashboard = "/contractor/dashboard";
+                } else if (userRole === "CUSTOMER" || userRole === "CITIZEN") {
+                    targetDashboard = "/customer/dashboard";
+                }
 
-                // Small delay before navigation to ensure toast is visible
                 setTimeout(() => {
-                    // Navigate to the intended destination or home page
-                    const redirectTo = location.state?.from?.pathname || "/";
+                    const redirectTo = location.state?.from?.pathname || targetDashboard;
                     navigate(redirectTo, { replace: true });
-                }, 1000);
+                }, 800);
                 
                 // Reset form
                 setFormData({
@@ -252,6 +260,43 @@ export default function Login() {
                                                     className="absolute right-3 top-1/2 transform -translate-y-1/2 w-8 h-8 flex items-center justify-center text-white/90 hover:text-white hover:bg-white/15 rounded-lg border border-white/20 backdrop-blur-sm transition-colors duration-200 no-hover-transform"
                                                 >
                                                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Quick Demo Accounts Selection */}
+                                        <div className="p-3 bg-white/10 rounded-xl border border-white/20 space-y-2">
+                                            <div className="text-xs font-semibold text-white/80 uppercase tracking-wider text-center">
+                                                ⚡ Quick Demo Accounts (Autofill)
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData({ email: "admin@roadasset.demo", password: "Admin@12345" })}
+                                                    className="py-1.5 px-2 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 border border-red-400 rounded-lg text-xs font-bold text-white text-center transition-all shadow-md"
+                                                >
+                                                    🛡️ Admin
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData({ email: "officer@roadasset.demo", password: "Officer@12345" })}
+                                                    className="py-1.5 px-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 border border-blue-400 rounded-lg text-xs font-bold text-white text-center transition-all shadow-md"
+                                                >
+                                                    👷 Officer
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData({ email: "contractor@roadasset.demo", password: "Contractor@12345" })}
+                                                    className="py-1.5 px-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 border border-amber-400 rounded-lg text-xs font-bold text-white text-center transition-all shadow-md"
+                                                >
+                                                    🏗️ Contractor
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData({ email: "customer@roadasset.demo", password: "Customer@12345" })}
+                                                    className="py-1.5 px-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 border border-emerald-400 rounded-lg text-xs font-bold text-white text-center transition-all shadow-md"
+                                                >
+                                                    👤 Citizen
                                                 </button>
                                             </div>
                                         </div>

@@ -6,7 +6,7 @@ import { Complaint } from "../models/complaint.models.js";
 import { User } from "../models/user.models.js";
 import { complaintPipeline, officerPipeline, statsPipeline } from "../pipelines/department.pipeline.js";
 
-const allowedCategories = ['fire', 'police', 'rail', 'cyber', 'court', 'road'];
+const allowedCategories = ['Road', 'road', 'Highway Management', 'Bridge & Drainage', 'Traffic Safety', 'Road Maintenance'];
 
 const createDepartment = asyncHandler(async (req, res) => {
     const { category, name, contact_email, contact_phone, jurisdiction_level, department_secret } = req.body;

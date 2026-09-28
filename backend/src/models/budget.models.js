@@ -48,6 +48,20 @@ const budgetSchema = new Schema(
         spentMaintenance: { type: Number, default: 0 },
         spentEmergency: { type: Number, default: 0 },
 
+        stateBudgets: [
+            {
+                stateCode: { type: String, required: true },
+                stateName: { type: String, required: true },
+                totalBudgetCr: { type: Number, required: true },
+                newConstructionCr: { type: Number, required: true },
+                maintenanceCr: { type: Number, required: true },
+                highwayLengthKm: { type: Number, default: 0 },
+                activeProjectsCount: { type: Number, default: 0 },
+                latitude: { type: Number, required: true },
+                longitude: { type: Number, required: true }
+            }
+        ],
+
         allocations: [budgetAllocationSchema],
         createdBy: { type: Schema.Types.ObjectId, ref: "user" },
     },

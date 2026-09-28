@@ -189,12 +189,13 @@ const Trending = () => {
 
   // Categories array for icons and colors
   const categories = [
-    { value: 'rail', label: 'Rail Incidents', icon: <MdTrain />, color: '#f59e0b' },
-    { value: 'road', label: 'Road Issues', icon: <MdConstruction />, color: '#db2777' },
-    { value: 'fire', label: 'Fire Emergency', icon: <MdLocalFireDepartment />, color: '#ef4444' },
-    { value: 'cyber', label: 'Cyber Crime', icon: <FiAlertTriangle />, color: '#8b5cf6' },
-    { value: 'police', label: 'Police', icon: <FiAlertTriangle />, color: '#3b82f6' },
-    { value: 'court', label: 'Court', icon: <MdBalance />, color: '#10b981' }
+    { value: 'POTHOLE', label: 'Pothole & Surface Damage', icon: <MdConstruction />, color: '#ef4444' },
+    { value: 'CRACK', label: 'Surface Cracks', icon: <MdConstruction />, color: '#f59e0b' },
+    { value: 'WATER_LOGGING', label: 'Waterlogging & Drainage', icon: <MdConstruction />, color: '#3b82f6' },
+    { value: 'ROAD_MARKING', label: 'Missing Road Markings', icon: <MdConstruction />, color: '#10b981' },
+    { value: 'DAMAGED_DIVIDER', label: 'Damaged Divider / Footpath', icon: <MdConstruction />, color: '#8b5cf6' },
+    { value: 'STREETLIGHT_ISSUE', label: 'Road Lighting Issue', icon: <MdConstruction />, color: '#ec4899' },
+    { value: 'TRAFFIC_SAFETY', label: 'Traffic Obstruction / Hazard', icon: <MdConstruction />, color: '#db2777' }
   ];
 
   // Handle ESC key to close modals

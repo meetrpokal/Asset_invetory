@@ -914,13 +914,13 @@ export default function Home() {
                 <div className="main-content">
                     <section className="hero-section">
                         <div className="hero-content">
-                            <h1 className="hero-title">Report. Track. Rescue.</h1>
-                            <p className="hero-subtitle">Get help or help others by reporting incidents in real-time.</p>
-                            <button className="report-incident-btn" onClick={() => navigate('/complain')}>
+                            <h1 className="hero-title">Plan. Construct. Inspect. Maintain.</h1>
+                            <p className="hero-subtitle">Government Road Infrastructure Asset Inventory & Lifecycle Management Platform.</p>
+                            <button className="report-incident-btn" onClick={() => navigate('/roads')}>
                                 <svg className="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                                 </svg>
-                                Report Incident
+                                Explore Road Inventory
                                 <div className="btn-glow"></div>
                             </button>
                         </div>
@@ -944,42 +944,35 @@ export default function Home() {
                                 onClick={() => setSelectedCategory('all')}
                             >
                                 <span className="tab-icon"><FiAlertTriangle /></span>
-                                All Reports
+                                All Road Assets
                             </button>
                             <button 
-                                className={`tab ${selectedCategory === 'rail' ? 'active' : ''}`}
-                                onClick={() => setSelectedCategory('rail')}
+                                className={`tab ${selectedCategory === 'active' ? 'active' : ''}`}
+                                onClick={() => setSelectedCategory('active')}
                             >
-                                <span className="tab-icon" style={{color: '#fde047'}}><MdTrain /></span>
-                                Rail
+                                <span className="tab-icon" style={{color: '#34d399'}}><MdConstruction /></span>
+                                Active Roads
                             </button>
                             <button 
-                                className={`tab ${selectedCategory === 'fire' ? 'active' : ''}`}
-                                onClick={() => setSelectedCategory('fire')}
+                                className={`tab ${selectedCategory === 'maintenance' ? 'active' : ''}`}
+                                onClick={() => setSelectedCategory('maintenance')}
                             >
-                                <span className="tab-icon" style={{color: '#fb7185'}}><MdLocalFireDepartment /></span>
-                                Fire
+                                <span className="tab-icon" style={{color: '#fb7185'}}><MdConstruction /></span>
+                                Under Maintenance
                             </button>
                             <button 
-                                className={`tab ${selectedCategory === 'cyber' ? 'active' : ''}`}
-                                onClick={() => setSelectedCategory('cyber')}
+                                className={`tab ${selectedCategory === 'construction' ? 'active' : ''}`}
+                                onClick={() => setSelectedCategory('construction')}
                             >
-                                <span className="tab-icon" style={{color: '#e879f9'}}><FiAlertTriangle /></span>
-                                Cyber
+                                <span className="tab-icon" style={{color: '#38bdf8'}}><MdConstruction /></span>
+                                Under Construction
                             </button>
                             <button 
-                                className={`tab ${selectedCategory === 'police' ? 'active' : ''}`}
-                                onClick={() => setSelectedCategory('police')}
+                                className={`tab ${selectedCategory === 'closed' ? 'active' : ''}`}
+                                onClick={() => setSelectedCategory('closed')}
                             >
-                                <span className="tab-icon" style={{color: '#7dd3fc'}}><FiShield /></span>
-                                Police
-                            </button>
-                            <button 
-                                className={`tab ${selectedCategory === 'court' ? 'active' : ''}`}
-                                onClick={() => setSelectedCategory('court')}
-                            >
-                                <span className="tab-icon" style={{color: '#4ade80'}}><MdBalance /></span>
-                                Court
+                                <span className="tab-icon" style={{color: '#f87171'}}><FiAlertTriangle /></span>
+                                Closed & Diversions
                             </button>
                         </div>
                     </div>

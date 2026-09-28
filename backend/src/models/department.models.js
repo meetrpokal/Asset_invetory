@@ -4,8 +4,9 @@ import bcrypt from "bcryptjs";
 const departmentSchema = new Schema({
     category: {
         type: String,
-        enum: ['rail', 'fire', 'cyber', 'police', 'court', 'road', 'Road', 'Bridge', 'Street Light', 'Traffic Signal', 'Water', 'Drainage', 'Electricity', 'CCTV', 'Public Building', 'Garbage', 'Railway', 'Other'],
+        enum: ['Road', 'road', 'Highway Management', 'Bridge & Drainage', 'Traffic Safety', 'Road Maintenance'],
         required: true,
+        default: 'Road',
     },
     name: {
         type: String,

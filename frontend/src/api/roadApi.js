@@ -41,6 +41,11 @@ export const updateRoadLifecycle = async (id, data) => {
     return res.data;
 };
 
+export const updateRoadClosure = async (id, data) => {
+    const res = await axiosInstance.put(`/roads/${id}/closure`, data);
+    return res.data;
+};
+
 // Road Project Proposals APIs
 export const getRoadProjects = async (params = {}) => {
     const res = await axiosInstance.get("/road-projects", { params });

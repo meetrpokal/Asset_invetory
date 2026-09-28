@@ -143,6 +143,18 @@ export default function RoadList() {
                       {road.area ? `${road.area}, ` : ""}{road.city}
                     </span>
                   </div>
+
+                  {/* Closure & Diversion Alert Banner */}
+                  {road.status === "TEMPORARILY_CLOSED" && road.closureDetails?.isClosed && (
+                    <div style={{ marginTop: "0.75rem", background: "rgba(239, 68, 68, 0.15)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: "8px", padding: "0.6rem", fontSize: "0.8rem", color: "#FCA5A5" }}>
+                      <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: "0.3rem" }}>
+                        <AlertTriangle size={14} color="#EF4444" /> ROAD CLOSED: {road.closureDetails.reason || "Under Maintenance"}
+                      </div>
+                      <div style={{ fontSize: "0.75rem", color: "#CBD5E1", marginTop: "0.25rem" }}>
+                        <strong>Diversion:</strong> {road.closureDetails.diversionRouteDescription || "Follow posted detour signs."}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="asset-card-footer">

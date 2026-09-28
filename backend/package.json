@@ -9,6 +9,7 @@
     "doraemon": "nodemon src/index.js",
     "gian": "nodemon queues/complaintWorker.js",
     "start": "node src/index.js",
+    "seed": "node seed.js",
     "render-start": "node render-start.js"
   },
   "keywords": [],

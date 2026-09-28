@@ -1,9 +1,59 @@
 import React, { useState, useEffect } from "react";
 import { getAnnualBudget, allocateBudget, getRoadProjects } from "../api/roadApi";
 import { DollarSign, PieChart, Plus, CheckCircle, Activity, AlertTriangle } from "lucide-react";
+import { MapContainer, TileLayer, CircleMarker, Tooltip } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 import Navbar from "../Navbar";
 import Footer from "../Footer";
 import "./BudgetDashboard.css";
+
+const indianStatesData = [
+  { name: "Maharashtra", coords: [19.7515, 75.7139], budget: 550 },
+  { name: "Gujarat", coords: [22.2587, 71.1924], budget: 420 },
+  { name: "Delhi", coords: [28.7041, 77.1025], budget: 150 },
+  { name: "Karnataka", coords: [15.3173, 75.7139], budget: 380 },
+  { name: "Tamil Nadu", coords: [11.1271, 78.6569], budget: 350 },
+  { name: "Uttar Pradesh", coords: [26.8467, 80.9462], budget: 600 },
+  { name: "West Bengal", coords: [22.9868, 87.8550], budget: 280 },
+  { name: "Rajasthan", coords: [27.0238, 74.2179], budget: 310 },
+  { name: "Madhya Pradesh", coords: [22.9734, 78.6569], budget: 290 },
+  { name: "Kerala", coords: [10.8505, 76.2711], budget: 200 }
+];
+
+const StateBudgetMap = () => {
+  return (
+    <MapContainer center={[22.5937, 78.9629]} zoom={4.5} style={{ height: "100%", width: "100%", background: "#1F2937" }}>
+      <TileLayer
+        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        attribution='&copy; <a href="https://carto.com/">CARTO</a>'
+      />
+      {indianStatesData.map((state) => {
+        // Radius based on budget size
+        const radius = Math.max(10, (state.budget / 600) * 35);
+        return (
+          <CircleMarker
+            key={state.name}
+            center={state.coords}
+            radius={radius}
+            fillColor="#10B981"
+            color="#059669"
+            weight={1}
+            opacity={0.8}
+            fillOpacity={0.6}
+          >
+            <Tooltip direction="top" offset={[0, -10]} opacity={1}>
+              <div style={{ padding: "4px", textAlign: "center" }}>
+                <strong>{state.name}</strong>
+                <br />
+                Budget: ₹{state.budget} Cr
+              </div>
+            </Tooltip>
+          </CircleMarker>
+        );
+      })}
+    </MapContainer>
+  );
+};
 
 export default function BudgetDashboard() {
   const [budgetData, setBudgetData] = useState(null);
@@ -123,6 +173,15 @@ export default function BudgetDashboard() {
               <div className="stat-value">₹{(metrics.totalRemaining / 10000000)?.toFixed(1)} Cr</div>
               <div className="stat-label">Total Remaining Funds</div>
             </div>
+          </div>
+        </div>
+
+        {/* State-wise Budget Heat Map */}
+        <div className="road-content-card" style={{ marginTop: "2rem" }}>
+          <h3 className="section-heading"><PieChart size={18} /> State-wise Budget Allocation (India)</h3>
+          <p style={{ color: "#9CA3AF", marginBottom: "1rem" }}>Visual representation of road budget allocated across different states in India.</p>
+          <div style={{ height: "400px", borderRadius: "12px", overflow: "hidden", border: "1px solid #374151" }}>
+            <StateBudgetMap />
           </div>
         </div>
 

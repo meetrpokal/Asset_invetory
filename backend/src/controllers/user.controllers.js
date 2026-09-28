@@ -151,8 +151,6 @@ const loginUser = asyncHandler( async (req, res) => {
     if (!email) throw new ApiError(400, "Email is required");
 
     const user = await User.findOne({ email });
-    const finds = await User.findOne({ email }).explain("executionStats");
-    console.log(finds);
 
     if (!user) throw new ApiError(404, "User not found.");
 

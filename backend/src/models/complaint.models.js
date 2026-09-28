@@ -35,8 +35,9 @@ const complaintSchema = new mongoose.Schema({
     },
     category: {
         type: String,
-        enum: ['POTHOLE', 'CRACK', 'DAMAGED_SURFACE', 'WATER_LOGGING', 'DRAINAGE', 'ROAD_MARKING', 'TRAFFIC_SAFETY', 'STREET_OBSTRUCTION', 'ACCIDENT_RISK', 'OTHER', 'road', 'Road', 'rail', 'fire', 'cyber', 'police', 'court'],
+        enum: ['POTHOLE', 'CRACK', 'DAMAGED_SURFACE', 'WATER_LOGGING', 'DRAINAGE', 'ROAD_MARKING', 'TRAFFIC_SAFETY', 'STREET_OBSTRUCTION', 'ACCIDENT_RISK', 'DAMAGED_DIVIDER', 'DAMAGED_FOOTPATH', 'STREETLIGHT_ISSUE', 'UNSAFE_ROAD', 'OTHER', 'road', 'Road'],
         required: true,
+        default: 'POTHOLE',
     },
     severity: {
         type: String,
