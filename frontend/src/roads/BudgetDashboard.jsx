@@ -1,39 +1,52 @@
 import React, { useState, useEffect } from "react";
 import { getAnnualBudget, allocateBudget, getRoadProjects } from "../api/roadApi";
 import { DollarSign, PieChart, Plus, CheckCircle, Activity, AlertTriangle } from "lucide-react";
-import { MapContainer, TileLayer, CircleMarker, Tooltip } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Tooltip, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import Navbar from "../Navbar";
 import Footer from "../Footer";
 import "./BudgetDashboard.css";
 
-const indianStatesData = [
-  { name: "Maharashtra", coords: [19.7515, 75.7139], budget: 550 },
-  { name: "Gujarat", coords: [22.2587, 71.1924], budget: 420 },
-  { name: "Delhi", coords: [28.7041, 77.1025], budget: 150 },
-  { name: "Karnataka", coords: [15.3173, 75.7139], budget: 380 },
-  { name: "Tamil Nadu", coords: [11.1271, 78.6569], budget: 350 },
-  { name: "Uttar Pradesh", coords: [26.8467, 80.9462], budget: 600 },
-  { name: "West Bengal", coords: [22.9868, 87.8550], budget: 280 },
-  { name: "Rajasthan", coords: [27.0238, 74.2179], budget: 310 },
-  { name: "Madhya Pradesh", coords: [22.9734, 78.6569], budget: 290 },
-  { name: "Kerala", coords: [10.8505, 76.2711], budget: 200 }
+const gujaratCitiesData = [
+  { name: "Ahmedabad", coords: [23.0225, 72.5714], budget: 250, roadWork: "Phase 2 Metro Expansion, SG Highway Flyover" },
+  { name: "Surat", coords: [21.1702, 72.8311], budget: 220, roadWork: "Outer Ring Road, Kadodara Highway Upgrade" },
+  { name: "Vadodara", coords: [22.3072, 73.1812], budget: 150, roadWork: "VIP Road Resurfacing, Sindhrot Bridge" },
+  { name: "Rajkot", coords: [22.3039, 70.8022], budget: 130, roadWork: "AIIMS Access Road, 150ft Ring Road Expansion" },
+  { name: "Bhavnagar", coords: [21.7645, 72.1519], budget: 90, roadWork: "Port Connectivity Road, Old City Repairs" },
+  { name: "Jamnagar", coords: [22.4707, 70.0577], budget: 85, roadWork: "Refinery Access Highway, Khambhaliya Bypass" },
+  { name: "Gandhinagar", coords: [23.2156, 72.6369], budget: 110, roadWork: "GIFT City Arterial Roads, Sector Repairs" },
+  { name: "Junagadh", coords: [21.5222, 70.4579], budget: 70, roadWork: "Girnar Ropeway Approach, By-pass Road" },
+  { name: "Anand", coords: [22.5645, 72.9289], budget: 65, roadWork: "Vidyanagar Corridor, Expressway Link" },
+  { name: "Navsari", coords: [20.9467, 72.9520], budget: 55, roadWork: "National Highway 48 Service Lanes" }
+];
+
+const gujaratBounds = [
+  [20.1, 68.1], // South-West
+  [24.7, 74.5]  // North-East
 ];
 
 const StateBudgetMap = () => {
   return (
-    <MapContainer center={[22.5937, 78.9629]} zoom={4.5} style={{ height: "100%", width: "100%", background: "#1F2937" }}>
+    <MapContainer 
+      center={[22.5, 71.5]} 
+      zoom={6.5} 
+      minZoom={6.5}
+      maxBounds={gujaratBounds}
+      maxBoundsViscosity={1.0}
+      style={{ height: "100%", width: "100%", background: "#1F2937" }}
+    >
       <TileLayer
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        attribution='&copy; <a href="https://carto.com/">CARTO</a>'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        className="budget-map-tiles"
       />
-      {indianStatesData.map((state) => {
+      {gujaratCitiesData.map((city) => {
         // Radius based on budget size
-        const radius = Math.max(10, (state.budget / 600) * 35);
+        const radius = Math.max(10, (city.budget / 300) * 35);
         return (
           <CircleMarker
-            key={state.name}
-            center={state.coords}
+            key={city.name}
+            center={city.coords}
             radius={radius}
             fillColor="#10B981"
             color="#059669"
@@ -42,12 +55,28 @@ const StateBudgetMap = () => {
             fillOpacity={0.6}
           >
             <Tooltip direction="top" offset={[0, -10]} opacity={1}>
-              <div style={{ padding: "4px", textAlign: "center" }}>
-                <strong>{state.name}</strong>
+              <div style={{ padding: "4px", textAlign: "center", color: "#000" }}>
+                <strong>{city.name}</strong>
                 <br />
-                Budget: ₹{state.budget} Cr
+                Click for details 👆
               </div>
             </Tooltip>
+            <Popup>
+              <div style={{ padding: "4px", color: "#1F2937", minWidth: "180px", fontFamily: "Inter, sans-serif" }}>
+                <h4 style={{ margin: "0 0 8px 0", color: "#111827", fontSize: "16px", borderBottom: "1px solid #E5E7EB", paddingBottom: "4px" }}>
+                  {city.name}
+                </h4>
+                <div style={{ marginBottom: "8px" }}>
+                  <strong>Allocated Budget:</strong> <span style={{ color: "#059669", fontWeight: "700" }}>₹{city.budget} Cr</span>
+                </div>
+                <div>
+                  <strong>Key Road Works:</strong>
+                  <p style={{ margin: "4px 0 0 0", fontSize: "13px", lineHeight: "1.4" }}>
+                    🚧 {city.roadWork}
+                  </p>
+                </div>
+              </div>
+            </Popup>
           </CircleMarker>
         );
       })}
@@ -176,10 +205,10 @@ export default function BudgetDashboard() {
           </div>
         </div>
 
-        {/* State-wise Budget Heat Map */}
+        {/* City-wise Budget Heat Map */}
         <div className="road-content-card" style={{ marginTop: "2rem" }}>
-          <h3 className="section-heading"><PieChart size={18} /> State-wise Budget Allocation (India)</h3>
-          <p style={{ color: "#9CA3AF", marginBottom: "1rem" }}>Visual representation of road budget allocated across different states in India.</p>
+          <h3 className="section-heading"><PieChart size={18} /> City-wise Budget Allocation (Gujarat)</h3>
+          <p style={{ color: "#9CA3AF", marginBottom: "1rem" }}>Visual representation of road budget allocated across major cities in Gujarat.</p>
           <div style={{ height: "400px", borderRadius: "12px", overflow: "hidden", border: "1px solid #374151" }}>
             <StateBudgetMap />
           </div>

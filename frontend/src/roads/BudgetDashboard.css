@@ -5,3 +5,8 @@
   padding: 6.5rem 2rem 4rem;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
+
+/* Dark theme filter for OpenStreetMap tiles */
+.budget-map-tiles {
+  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
