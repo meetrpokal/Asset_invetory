@@ -1,0 +1,18 @@
+graph TD
+    A[Citizen] -->|Reports Issue / Views Data| B(Web Portal)
+    C[Government Official] -->|Allocates Budget / Reviews| B
+    D[Contractor] -->|Updates Project Status| B
+    
+    B -->|API Requests| E{Central System}
+    
+    E -->|Validates & Processes| F[(Asset Database)]
+    E -->|Manages Allocation| G[(Budget Database)]
+    
+    F -->|Fetches Map Locations| H[Interactive Heatmap]
+    G -->|Fetches City-wise Funds| H
+    
+    H -->|Displays Data| A
+    H -->|Displays Data| C
+    
+    E -->|Notifies| C
+    E -->|Notifies| D

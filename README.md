@@ -1,6 +1,6 @@
-# 🚨 Rescue - Public Safety & Complaint Management System
+# 🛣️ RoadInfra - Asset Inventory & Road Management System
 
-A comprehensive, real-time complaint management and incident reporting platform designed for public safety departments including Police, Fire, Railway, Road, Cyber Crime, and Court services.
+A comprehensive, real-time road asset, budget allocation, and complaint management platform designed for public infrastructure departments including Government Officials, Road Contractors, and Citizens.
 
 ![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-green.svg)
 ![React](https://img.shields.io/badge/react-19.1.0-blue.svg)
@@ -24,7 +24,7 @@ A comprehensive, real-time complaint management and incident reporting platform 
 
 ## 🌟 Overview
 
-**Rescue** is a full-stack web application that enables citizens to report complaints and incidents to appropriate government departments, while providing officers with real-time tools to respond and manage cases efficiently. The platform leverages modern web technologies to deliver a responsive, real-time, and highly optimized user experience.
+**RoadInfra** is a full-stack web application that enables citizens to report road-related complaints and view budget allocations, while providing government officials and contractors with real-time tools to allocate funds, manage infrastructure projects, and respond to issues efficiently. The platform leverages modern web technologies to deliver a responsive, real-time, and highly optimized user experience.
 
 ---
 
@@ -676,7 +676,7 @@ PORT=5000
 NODE_ENV=development
 
 # Database - MongoDB
-MONGODB_URI=mongodb://localhost:27017/lodge
+MONGODB_URI=mongodb://localhost:27017/roadinfra
 npm install
 ```
 
@@ -703,7 +703,7 @@ PORT=5000
 NODE_ENV=development
 
 # Database - MongoDB
-MONGODB_URI=mongodb://localhost:27017/rescue
+MONGODB_URI=mongodb://localhost:27017/roadinfra
 
 # Database - PostgreSQL (Railway)
 PG_HOST=localhost
