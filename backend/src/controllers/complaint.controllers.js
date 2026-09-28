@@ -1,0 +1,1007 @@
+import { asyncHandler } from "../../utils/asyncHandler.js";
+import { ApiError } from "../../utils/ApiError.js";
+import { Complaint } from "../models/complaint.models.js";
+import mongoose from "mongoose";
+import { ensureTrainExists, getTrainByNumber } from "../services/rail.service.js";
+import { calculateTrendingScore } from "../../utils/trendingScore.js";
+// import { Department } from "../models/department.models.js";
+import { io } from "../server.js";
+import { History } from "../models/history.models.js";
+import { scheduleEscalation, cancelEscalation } from "../../utils/scheduleEscalation.js";
+import { Asset } from "../models/asset.models.js";
+import { Department } from "../models/department.models.js";
+
+const getTrendingComplaints = asyncHandler(async (req, res) => {
+    const { cursor, limit } = req.query;
+
+    const query = cursor ? { createdAt: { $lt: new Date(cursor) } } : {};
+
+    let complaints = await Complaint.find(query)
+        .sort({ createdAt: -1 })
+        .limit(Number(limit) + 1)
+        .populate("user_id", "name profileImage")
+        .lean();
+
+    if (!complaints || complaints.length == 0) {
+        return res.status(200).json({
+            success: true,
+            data: [],
+            nextCursor: null,
+            hasNextPage: false,
+        });
+    }
+
+    complaints = complaints.map((c) => ({
+        ...c,
+        score: calculateTrendingScore(c),
+    }));
+
+    complaints.sort((a, b) => b.score - a.score);
+
+    const hasNextPage = complaints.length > limit;
+    const results = complaints.slice(0, limit);
+    const nextCursor = hasNextPage ? results[results.length - 1].createdAt.toISOString() : null;
+
+    res.status(200).json({
+        success: true,
+        data: results,
+        nextCursor,
+        hasNextPage,
+    });
+});
+
+const getNearbyComplaints = asyncHandler(async (req, res) => {
+    try {
+        const { latitude, longitude } = req.query;
+        if (!latitude || !longitude) return ApiError(400, "Latitude and longitude are required");
+
+        const minsAgo = new Date(Date.now() - 30 * 60 * 1000);
+
+        const complaints = await Complaint.find({
+            createdAt: { $gte: minsAgo },
+            location: {
+                $near: {
+                    $geometry: { type: "Point", coordinates: [parseFloat(longitude), parseFloat(latitude)] },
+                    $maxDistance: 30000 // meters
+                }
+            }
+        })
+        .populate("user_id", "name email profileImage")
+        .lean();
+
+        res.status(200).json({
+            success: true,
+            count: complaints.length,
+            complaints
+        });
+    } catch (error) {
+        console.error("Error in getNearbyComplaints: ", error);
+        res.status(500).json({ success: false, error: error.message })
+    }
+})
+
+const createComplaint = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  // console.log('=== BACKEND REQUEST DEBUG ===');
+  // console.log('Full req.body:', JSON.stringify(req.body, null, 2));
+  // console.log('req.body keys:', Object.keys(req.body));
+
+  const { title, description, category, location, address, evidenceIds = [], category_data_id, severity, assetId } = req.body;
+
+  if (!title || !description || !category || !location || !address) {
+    throw new ApiError(400, "All required fields (title, description, category, location, address) must be provided");
+  }
+
+  // Validate location structure
+  if (!location.type || !location.coordinates) {
+    throw new ApiError(400, "Location must have 'type' and 'coordinates' fields (GeoJSON format)");
+  }
+
+  if (location.type !== 'Point') {
+    throw new ApiError(400, "Location type must be 'Point'");
+  }
+
+  if (!Array.isArray(location.coordinates) || location.coordinates.length !== 2) {
+    throw new ApiError(400, "Location coordinates must be an array of [longitude, latitude]");
+  }
+
+  const [lng, lat] = location.coordinates;
+
+  if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat) || !Number.isFinite(lng) || !Number.isFinite(lat)) {
+    throw new ApiError(400, `Location coordinates must be valid numbers. Received: lng=${lng} (${typeof lng}), lat=${lat} (${typeof lat})`);
+  }
+
+  if (!category) {
+    throw new ApiError(400, "Invalid category: category does not exist");
+  }
+
+  let resolvedAssetId = null;
+  let assignedDepartmentId = null;
+
+  // Resolve Asset & Department if assetId provided
+  if (assetId) {
+    let targetAsset = null;
+    if (mongoose.Types.ObjectId.isValid(assetId)) {
+      targetAsset = await Asset.findById(assetId);
+    }
+    if (!targetAsset) {
+      targetAsset = await Asset.findOne({ $or: [{ assetId }, { assetCode: assetId }] });
+    }
+    if (targetAsset) {
+      resolvedAssetId = targetAsset._id;
+      if (targetAsset.departmentId) {
+        assignedDepartmentId = targetAsset.departmentId;
+      }
+      // If asset health was HEALTHY, set it to WARNING due to complaint
+      if (targetAsset.health === "HEALTHY") {
+        targetAsset.health = "WARNING";
+        await targetAsset.save();
+      }
+    }
+  }
+
+  // Fallback department resolution if not resolved by asset
+  if (!assignedDepartmentId && category) {
+    const dept = await Department.findOne({
+      category: { $regex: new RegExp(`^${category}$`, "i") }
+    });
+    if (dept) {
+      assignedDepartmentId = dept._id;
+    }
+  }
+
+  let trainMatched = null; 
+  if (category === "rail") {
+    trainMatched = await ensureTrainExists(category_data_id);
+    if (!trainMatched) {
+      throw new ApiError(400, "Invalid train: train does not exist");
+    }
+  }
+
+  const complaint = await Complaint.create({
+    title,
+    description,
+    category,
+    assetId: resolvedAssetId,
+    assignedDepartment: assignedDepartmentId,
+    location: {
+      type: location.type,
+      coordinates: location.coordinates
+    },
+    address,
+    evidence_ids: evidenceIds || [],
+    user_id: userId,
+    category_data_id: category_data_id || '',
+    severity,
+  });
+
+  if (complaint) {
+    // Schedule initial escalation (level 1 -> next level based on severity)
+    try {
+      await scheduleEscalation(complaint);
+      // console.log(`Initial escalation scheduled for complaint ${complaint._id}`);
+    } catch (escalationError) {
+      console.error("Error scheduling initial escalation:", escalationError);
+      // Don't fail the complaint creation if escalation scheduling fails
+    }
+
+    // Add history entry for complaint registration
+    try {
+      await History.create({
+        user_id: userId,
+        actionType: 'COMPLAINT_REGISTERED',
+        complaint_id: complaint._id,
+        category: category,
+        details: {
+          title: title,
+          category: category,
+          severity: severity,
+          location: address
+        }
+      });
+    } catch (historyError) {
+      console.error("Error adding history entry:", historyError);
+      // Don't fail the complaint creation if history fails
+    }
+
+    // console.log("Complaint created successfully, emitting to socket...");
+    // console.log("Complaint ID:", complaint._id);
+    
+    // Populate user information before emitting
+    const populatedComplaint = await Complaint.findById(complaint._id)
+      .populate("user_id", "name email profileImage")
+      .lean();
+    
+    // Add train data if it's a rail complaint
+    let enrichedComplaint = populatedComplaint;
+    if (populatedComplaint.category === "rail" && populatedComplaint.category_data_id) {
+      try {
+        const train = await getTrainByNumber(populatedComplaint.category_data_id);
+        if (train && train.stations) {
+          const stations = typeof train.stations === 'string' 
+            ? JSON.parse(train.stations) 
+            : train.stations;
+          enrichedComplaint = { ...populatedComplaint, category_specific_data: { ...train, stations } };
+        } else {
+          enrichedComplaint = { ...populatedComplaint, category_specific_data: train };
+        }
+      } catch (error) {
+        console.error("Error fetching train data for socket emit:", error);
+      }
+    }
+    
+    // console.log("Populated complaint:", JSON.stringify(populatedComplaint, null, 2));
+    // console.log("Emitting newComplaint event to all connected clients...");
+    
+    // Emit general complaint event
+    io.emit("newComplaint", enrichedComplaint);
+    
+    // Emit specific event for officers with severity and location info
+    io.emit("newComplaintForOfficer", {
+      complaint: enrichedComplaint,
+      location: enrichedComplaint.location,
+      severity: enrichedComplaint.severity,
+      category: enrichedComplaint.category,
+      timestamp: enrichedComplaint.createdAt
+    });
+    
+    // console.log("Socket emit completed");
+  }
+
+  res.status(201).json({
+    success: true,
+    message: "Complaint created successfully",
+    data: complaint
+  });
+});
+
+const getComplaintById = asyncHandler(async (req, res) => {
+    const { complaintId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(complaintId)) {
+        throw new ApiError(400, "Invalid complaintId format");
+    }
+
+    let complaint = await Complaint.findById(complaintId)
+        .populate("user_id", "name email profileImage")
+        .populate("evidence_ids")
+        .populate("votedUsers", "name email profileImage")
+        .populate("assigned_officer_id", "name email profileImage")
+        .populate("feedback_ids", "complaint_id rating comment createdAt updatedAt")
+        .populate({
+            path: "escalation_id",
+            populate: {
+                path: "history.escalated_by",
+                select: "name email"
+            }
+        })
+        .lean();
+
+    if (!complaint) {
+        throw new ApiError(404, "Complaint not found");
+    }
+
+    // NOTE - This will only allow the complainer or an officer or an admin to view the details of a complaint, but currently anyone should be able to view the complaint details
+
+    // if (req.user.role !== 'admin' && req.user.role !== 'officer' && req.user._id.toString() !== complaint.user_id._id.toString()) {
+    //     throw new ApiError(403, "You do not have permission to view this complaint");
+    // }
+
+    // Add category-specific data if available
+    if (complaint.category === "rail" && complaint.category_data_id) {
+        try {
+            const train = await getTrainByNumber(complaint.category_data_id);
+            if (train && train.stations) {
+                // Parse stations if it's a JSON string
+                const stations = typeof train.stations === 'string' 
+                    ? JSON.parse(train.stations) 
+                    : train.stations;
+                complaint = { ...complaint, category_specific_data: { ...train, stations } };
+            } else {
+                complaint = { ...complaint, category_specific_data: train };
+            }
+        } catch (error) {
+            console.error("Error fetching train data:", error);
+            // Continue without train data if there's an error
+        }
+    }
+
+    res.status(200).json({
+        success: true,
+        data: complaint
+    });
+});
+
+const getComplaintByUser = asyncHandler(async (req, res) => {
+    const userId = req.user._id;
+    const { cursor, limit = 9 } = req.query;
+
+    // Get total count of user's complaints (only once, not on every pagination)
+    const totalCount = await Complaint.countDocuments({ user_id: userId });
+
+    // Build query with cursor-based pagination
+    const query = { user_id: userId };
+    if (cursor) {
+        query.createdAt = { $lt: new Date(cursor) };
+    }
+
+    // Fetch one extra to check if there are more pages
+    let complaints = await Complaint.find(query)
+        .sort({ createdAt: -1 })
+        .limit(Number(limit) + 1)
+        .populate("user_id", "name email")
+        .populate("evidence_ids")
+        .populate("votedUsers", "name email profileImage")
+        .populate("assigned_officer_id", "name email profileImage")
+        .populate("feedback_ids", "complaint_id rating comment createdAt updatedAt")
+        .lean();
+
+    // Check if there are more pages
+    const hasNextPage = complaints.length > limit;
+    const results = complaints.slice(0, limit);
+
+    // Process complaints with category-specific data
+    const processedComplaints = await Promise.all(
+        results.map(async complaint => {
+            // Determine current user's vote status
+            const userVote = complaint.votedUsers.find(vote => 
+                vote.user && vote.user._id.toString() === userId.toString()
+            );
+            
+            if (complaint.category === "rail") {
+                const train = await getTrainByNumber(complaint.category_data_id);
+                if (train && train.stations) {
+                    // Parse stations if it's a JSON string
+                    const stations = typeof train.stations === 'string' 
+                        ? JSON.parse(train.stations) 
+                        : train.stations;
+                    return { 
+                        ...complaint, 
+                        category_specific_data: { ...train, stations },
+                        userVote: userVote ? userVote.vote : null,
+                        comments: complaint.feedback_ids || []
+                    };
+                } else {
+                    return { 
+                        ...complaint, 
+                        category_specific_data: train,
+                        userVote: userVote ? userVote.vote : null,
+                        comments: complaint.feedback_ids || []
+                    };
+                }
+            }
+            return {
+                ...complaint,
+                userVote: userVote ? userVote.vote : null,
+                comments: complaint.feedback_ids || []
+            };
+        })
+    );
+
+    // Get the next cursor from the last complaint
+    const nextCursor = hasNextPage && results.length > 0 
+        ? results[results.length - 1].createdAt.toISOString() 
+        : null;
+
+    res.status(200).json({
+        success: true,
+        count: processedComplaints.length,
+        totalCount: totalCount,
+        data: processedComplaints,
+        nextCursor,
+        hasNextPage
+    });
+});
+
+const getComplaintByUserAndCategory = asyncHandler(async (req, res) => {
+    const userId = req.user._id;
+    const { category } = req.params;
+    const { cursor, limit = 9 } = req.query;
+
+    // Validate category
+    const validCategories = ['rail', 'road', 'fire', 'cyber', 'police', 'court'];
+    if (!validCategories.includes(category)) {
+        throw new ApiError(400, "Invalid category");
+    }
+
+    // Get total count of user's complaints for this category
+    const totalCount = await Complaint.countDocuments({ user_id: userId, category });
+
+    // Build query with cursor-based pagination and category filter
+    const query = { user_id: userId, category };
+    if (cursor) {
+        query.createdAt = { $lt: new Date(cursor) };
+    }
+
+    // Fetch one extra to check if there are more pages
+    let complaints = await Complaint.find(query)
+        .sort({ createdAt: -1 })
+        .limit(Number(limit) + 1)
+        .populate("user_id", "name email")
+        .populate("evidence_ids")
+        .populate("votedUsers", "name email profileImage")
+        .populate("assigned_officer_id", "name email profileImage")
+        .populate("feedback_ids", "complaint_id rating comment createdAt updatedAt")
+        .lean();
+
+    // Check if there are more pages
+    const hasNextPage = complaints.length > limit;
+    const results = complaints.slice(0, limit);
+
+    // Process complaints with category-specific data
+    const processedComplaints = await Promise.all(
+        results.map(async complaint => {
+            // Determine current user's vote status
+            const userVote = complaint.votedUsers.find(vote => 
+                vote.user && vote.user._id.toString() === userId.toString()
+            );
+            
+            if (complaint.category === "rail") {
+                const train = await getTrainByNumber(complaint.category_data_id);
+                if (train && train.stations) {
+                    // Parse stations if it's a JSON string
+                    const stations = typeof train.stations === 'string' 
+                        ? JSON.parse(train.stations) 
+                        : train.stations;
+                    return { 
+                        ...complaint, 
+                        category_specific_data: { ...train, stations },
+                        userVote: userVote ? userVote.vote : null,
+                        comments: complaint.feedback_ids || []
+                    };
+                } else {
+                    return { 
+                        ...complaint, 
+                        category_specific_data: train,
+                        userVote: userVote ? userVote.vote : null,
+                        comments: complaint.feedback_ids || []
+                    };
+                }
+            }
+            return {
+                ...complaint,
+                userVote: userVote ? userVote.vote : null,
+                comments: complaint.feedback_ids || []
+            };
+        })
+    );
+
+    // Get the next cursor from the last complaint
+    const nextCursor = hasNextPage && results.length > 0 
+        ? results[results.length - 1].createdAt.toISOString() 
+        : null;
+
+    res.status(200).json({
+        success: true,
+        count: processedComplaints.length,
+        totalCount: totalCount,
+        data: processedComplaints,
+        nextCursor,
+        hasNextPage,
+        category
+    });
+});
+
+const updateComplaintStatus = asyncHandler(async (req, res) => {
+    const { complaintId } = req.params;
+    const { status } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(complaintId)) {
+        throw new ApiError(400, "Invalid complaintId format");
+    }
+
+    const validStatuses = ["pending", "in_progress", "resolved", "rejected"];
+    if (!validStatuses.includes(status)) {
+        throw new ApiError(400, `Invalid status. Valid statuses are: ${validStatuses.join(", ")}`);
+    }
+
+    const complaint = await Complaint.findById(complaintId);
+
+    if (!complaint) {
+        throw new ApiError(404, "Complaint not found");
+    }
+
+    const oldStatus = complaint.status;
+    complaint.status = status;
+    
+    // Cancel escalation if complaint is being resolved or rejected
+    if ((status === 'resolved' || status === 'rejected') && oldStatus !== status) {
+        try {
+            const cancelResult = await cancelEscalation(complaintId);
+            if (cancelResult.success) {
+                // console.log(`✅ Escalation timer cancelled for ${status} complaint ${complaintId}`);
+            } else {
+                // console.log(`⚠️ Could not cancel escalation: ${cancelResult.message}`);
+            }
+        } catch (escalationError) {
+            console.error(`Error cancelling escalation for complaint ${complaintId}:`, escalationError);
+            // Continue even if escalation cancellation fails
+        }
+    }
+    
+    await complaint.save();
+
+    res.status(200).json({
+        success: true,
+        message: "Complaint status updated successfully",
+        data: complaint
+    });
+})
+
+const assignComplaintToDepartment = asyncHandler(async (req, res) => {
+    const { complaintId } = req.params;
+    const { departmentId } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(departmentId)) {
+        throw new ApiError(400, "Invalid complaint ID format.");
+    }
+    if (!mongoose.Types.ObjectId.isValid(departmentId)) {
+        throw new ApiError(400, "Invalid department ID format.");
+    }
+
+    const complaint = await Complaint.findById(complaintId);
+    if (!complaint) throw new ApiError(404, "Department not found.");
+
+    if (req.user.role != "admin") throw new ApiError(403, "You are not authorized to assign departments.");
+
+    complaint.assignedDepartment = departmentId;
+    await complaint.save();
+
+    res.status(200).json({
+        success: true,
+        message: "Complaint assigned to department successfully.",
+        data: complaint,
+    })
+})
+
+const deleteComplaint = asyncHandler(async (req, res) => {
+    const { complaintId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(complaintId)) {
+        throw new ApiError(400, "Invalid complaint ID format.");
+    }
+
+    const complaint = await Complaint.findById(complaintId);
+
+    if (!complaint) throw new ApiError(404, "Complaint not found.");
+
+    if (!complaint.user_id.equals(req.user._id) && req.user.role !== "admin") {
+        throw new ApiError(403, "You are not authorized to delete this complaint.");
+    }
+
+    await complaint.deleteOne();
+
+    res.status(200).json({
+        success: true,
+        message: "Complaint deleted successfully."
+    });
+});
+
+const upvoteComplaint = asyncHandler(async (req, res) => {
+    const { complaintId } = req.params;
+    const userId = req.user._id;
+
+    if (!mongoose.Types.ObjectId.isValid(complaintId)) {
+        throw new ApiError(400, "Invalid complaint ID format.")
+    }
+
+    const complaint = await Complaint.findById(complaintId);
+    if (!complaint) {
+        throw new ApiError(404, "Complaint not found.");
+    }
+
+    const existingVote = complaint.votedUsers.find((v) => v.user.equals(userId));
+
+    if (existingVote) {
+        if (existingVote.vote === "upvote") {
+            throw new ApiError(400, "You have already upvoted this complaint.");
+        }
+        else if (existingVote.vote === "downvote") {
+            complaint.downvote -= 1;
+            existingVote.vote = "upvote";
+            complaint.upvote += 1;
+        }
+    }
+    else {
+        complaint.upvote += 1;
+        complaint.votedUsers.push({ user: userId, vote: "upvote" });
+    }
+
+    // Use updateOne to bypass validation on other fields
+    await Complaint.updateOne(
+        { _id: complaintId },
+        { 
+            upvote: complaint.upvote,
+            downvote: complaint.downvote,
+            votedUsers: complaint.votedUsers
+        }
+    );
+
+    // Determine current user's vote status
+    const userVote = complaint.votedUsers.find(vote => 
+        vote.user && vote.user.toString() === userId.toString()
+    );
+
+    res.status(200).json({
+        success: true,
+        message: "Upvote recorded successfully.",
+        data: {
+            upvote: complaint.upvote,
+            downvote: complaint.downvote,
+            userVote: userVote ? userVote.vote : null
+        }
+    })
+})
+
+const downvoteComplaint = asyncHandler(async (req, res) => {
+    const { complaintId } = req.params;
+    const userId = req.user._id;
+
+    if (!mongoose.Types.ObjectId.isValid(complaintId)) {
+        throw new ApiError(400, "Invalid complaint ID format.");
+    }
+
+    const complaint = await Complaint.findById(complaintId);
+    if (!complaint) {
+        throw new ApiError(404, "Complaint not found.")
+    }
+
+    const existingVote = complaint.votedUsers.find((v) =>
+        v.user.equals(userId)
+    );
+
+    if (existingVote) {
+        if (existingVote.vote === "downvote") {
+        throw new ApiError(400, "You have already downvoted this complaint.");
+        } else if (existingVote.vote === "upvote") {
+        // Remove upvote & add downvote
+        complaint.upvote -= 1;
+        existingVote.vote = "downvote";
+        complaint.downvote += 1;
+        }
+    } else {
+        // First time voting: add downvote
+        complaint.downvote += 1;
+        complaint.votedUsers.push({ user: userId, vote: "downvote" });
+    }
+
+    // Use updateOne to bypass validation on other fields
+    await Complaint.updateOne(
+        { _id: complaintId },
+        { 
+            upvote: complaint.upvote,
+            downvote: complaint.downvote,
+            votedUsers: complaint.votedUsers
+        }
+    );
+
+    // Determine current user's vote status
+    const userVote = complaint.votedUsers.find(vote => 
+        vote.user && vote.user.toString() === userId.toString()
+    );
+
+    res.status(200).json({
+        success: true,
+        message: "Downvote recorded successfully.",
+        data: {
+            upvote: complaint.upvote,
+            downvote: complaint.downvote,
+            userVote: userVote ? userVote.vote : null
+        }
+    });
+})
+
+const searchMyComplaints = asyncHandler(async (req, res) => {
+    const userId = req.user._id;
+    const { searchTerm, cursor, limit = 9, category } = req.query;
+
+    if (!searchTerm || searchTerm.trim() === '') {
+        return res.status(400).json({
+            success: false,
+            message: "Search term is required"
+        });
+    }
+
+    // Validate category if provided
+    if (category) {
+        const validCategories = ['rail', 'road', 'fire', 'cyber', 'police', 'court'];
+        if (!validCategories.includes(category)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid category"
+            });
+        }
+    }
+
+    const trimmedSearchTerm = searchTerm.trim();
+    const parsedLimit = Number(limit);
+
+    // Build query with cursor-based pagination and optional category filter
+    const query = { user_id: userId };
+    if (cursor) {
+        query.createdAt = { $lt: new Date(cursor) };
+    }
+    if (category) {
+        query.category = category;
+    }
+
+    // Create MongoDB text search query for title and description
+    const textSearchQuery = {
+        ...query,
+        $or: [
+            { title: { $regex: trimmedSearchTerm, $options: 'i' } },
+            { description: { $regex: trimmedSearchTerm, $options: 'i' } }
+        ]
+    };
+
+    // First, get TOTAL count of text matches (without cursor or limit)
+    const textSearchQueryWithoutCursor = {
+        user_id: userId,
+        $or: [
+            { title: { $regex: trimmedSearchTerm, $options: 'i' } },
+            { description: { $regex: trimmedSearchTerm, $options: 'i' } }
+        ]
+    };
+    if (category) {
+        textSearchQueryWithoutCursor.category = category;
+    }
+    const totalTextMatches = await Complaint.countDocuments(textSearchQueryWithoutCursor);
+
+    // Fetch complaints matching text search with pagination
+    let textMatchComplaints = await Complaint.find(textSearchQuery)
+        .sort({ createdAt: -1 })
+        .limit(parsedLimit + 1)
+        .populate("user_id", "name email profileImage")
+        .populate("evidence_ids")
+        .populate("votedUsers", "name email profileImage")
+        .populate("assigned_officer_id", "name email profileImage")
+        .populate("feedback_ids", "complaint_id rating comment createdAt updatedAt")
+        .lean();
+
+    // For rail complaints, we need to check train data as well
+    // Only search rail complaints if no category is specified or category is 'rail'
+    const matchingRailComplaints = [];
+    let totalRailComplaints = 0;
+    
+    if (!category || category === 'rail') {
+        const railQuery = {
+            user_id: userId,
+            category: 'rail'
+        };
+
+        // Get total count of rail complaints
+        totalRailComplaints = await Complaint.countDocuments(railQuery);
+
+        let railComplaints = await Complaint.find(railQuery)
+            .sort({ createdAt: -1 })
+            .populate("user_id", "name email profileImage")
+            .populate("evidence_ids")
+            .populate("votedUsers", "name email profileImage")
+            .populate("assigned_officer_id", "name email profileImage")
+            .populate("feedback_ids", "complaint_id rating comment createdAt updatedAt")
+            .lean();
+
+        // Filter rail complaints by train data and add category_specific_data
+        const matchingRailComplaintIds = new Set(); // Track IDs to avoid duplicates
+        
+        for (const complaint of railComplaints) {
+            if (complaint.category_data_id) {
+                try {
+                    const train = await getTrainByNumber(complaint.category_data_id);
+                    if (train) {
+                        // Add train data to complaint
+                        const stations = typeof train.stations === 'string' 
+                            ? JSON.parse(train.stations) 
+                            : train.stations;
+                        complaint.category_specific_data = { ...train, stations };
+
+                        // Check if train number or name matches search term
+                        if (train.train_number && train.train_number.toLowerCase().includes(trimmedSearchTerm.toLowerCase())) {
+                            matchingRailComplaints.push(complaint);
+                            matchingRailComplaintIds.add(complaint._id.toString());
+                        } else if (train.train_name && train.train_name.toLowerCase().includes(trimmedSearchTerm.toLowerCase())) {
+                            matchingRailComplaints.push(complaint);
+                            matchingRailComplaintIds.add(complaint._id.toString());
+                        }
+                    }
+                } catch (error) {
+                    console.error(`Error fetching train data for complaint ${complaint._id}:`, error);
+                }
+            }
+        }
+    }
+
+    // Add category_specific_data to text-matched rail complaints
+    for (const complaint of textMatchComplaints) {
+        if (complaint.category === 'rail' && complaint.category_data_id) {
+            try {
+                const train = await getTrainByNumber(complaint.category_data_id);
+                if (train) {
+                    const stations = typeof train.stations === 'string' 
+                        ? JSON.parse(train.stations) 
+                        : train.stations;
+                    complaint.category_specific_data = { ...train, stations };
+                }
+            } catch (error) {
+                console.error(`Error fetching train data for complaint ${complaint._id}:`, error);
+            }
+        }
+    }
+
+    // Merge and deduplicate results (text matches + rail train matches)
+    const complaintMap = new Map();
+    
+    // Add all text match complaints
+    textMatchComplaints.forEach(c => complaintMap.set(c._id.toString(), c));
+    
+    // Add rail complaints that matched by train data (if not already in map)
+    matchingRailComplaints.forEach(c => {
+        if (!complaintMap.has(c._id.toString())) {
+            complaintMap.set(c._id.toString(), c);
+        }
+    });
+
+    // Convert map to array and sort by createdAt
+    let allMatches = Array.from(complaintMap.values());
+    allMatches.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    // Calculate TOTAL count properly:
+    // - Total text matches from DB count
+    // - Plus rail matches that are NOT already in text matches
+    const railMatchesNotInTextMatches = matchingRailComplaints.filter(rc => {
+        const rcId = rc._id.toString();
+        // Check if this rail complaint was also matched by text search
+        const wasTextMatched = textMatchComplaints.some(tc => tc._id.toString() === rcId);
+        return !wasTextMatched;
+    }).length;
+    
+    const totalMatchingComplaints = totalTextMatches + railMatchesNotInTextMatches;
+
+    // Apply cursor filter if needed (for pagination)
+    if (cursor) {
+        const cursorDate = new Date(cursor);
+        allMatches = allMatches.filter(c => new Date(c.createdAt) < cursorDate);
+    }
+
+    // Implement pagination
+    const hasNextPage = allMatches.length > parsedLimit;
+    const results = allMatches.slice(0, parsedLimit);
+
+    // Get the next cursor from the last complaint
+    const nextCursor = hasNextPage && results.length > 0 
+        ? results[results.length - 1].createdAt.toISOString() 
+        : null;
+
+    res.status(200).json({
+        success: true,
+        count: results.length,
+        totalCount: totalMatchingComplaints, // Use the total BEFORE cursor filter
+        data: results,
+        nextCursor,
+        hasNextPage,
+        searchTerm: trimmedSearchTerm
+    });
+});
+
+const reopenComplaint = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const userId = req.user._id;
+
+    const complaint = await Complaint.findById(id);
+    if (!complaint) {
+        throw new ApiError(404, "Complaint not found");
+    }
+
+    if (complaint.user_id.toString() !== userId.toString() && req.user.role !== "SUPER_ADMIN") {
+        throw new ApiError(403, "Only the citizen who created the complaint can reopen it");
+    }
+
+    const previousStatus = complaint.status;
+    complaint.status = "reopened";
+    complaint.active = true;
+    complaint.reopenedCount = (complaint.reopenedCount || 0) + 1;
+    complaint.reopenHistory.push({
+        reopenedBy: userId,
+        reason: reason || "Problem still exists after resolution",
+        reopenedAt: new Date(),
+    });
+
+    await complaint.save();
+
+    // Log in History
+    await History.create({
+        user_id: userId,
+        actionType: "COMPLAINT_STATUS_UPDATED",
+        complaint_id: complaint._id,
+        category: complaint.category,
+        previous_state: { status: previousStatus },
+        new_state: { status: "reopened" },
+        details: {
+            reason: reason || "Problem still exists",
+            reopenedCount: complaint.reopenedCount,
+        },
+    });
+
+    // Re-schedule escalation queue
+    try {
+        await scheduleEscalation(complaint);
+    } catch (err) {
+        console.error("Error rescheduling escalation on reopen:", err);
+    }
+
+    // Emit Socket event to department / officers
+    try {
+        io.emit("complaintReopened", {
+            complaintId: complaint._id,
+            category: complaint.category,
+            assignedDepartment: complaint.assignedDepartment,
+            reopenedBy: req.user.name,
+            reason: reason || "Problem still exists",
+        });
+    } catch (socketErr) {
+        console.error("Error emitting socket event for reopen:", socketErr);
+    }
+
+    res.status(200).json({
+        success: true,
+        message: "Complaint successfully reopened and department notified",
+        data: complaint,
+    });
+});
+
+const linkAssetToComplaint = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { assetId } = req.body;
+
+    if (!assetId) {
+        throw new ApiError(400, "assetId parameter is required");
+    }
+
+    const complaint = await Complaint.findById(id);
+    if (!complaint) {
+        throw new ApiError(404, "Complaint not found");
+    }
+
+    let targetAsset = null;
+    if (mongoose.Types.ObjectId.isValid(assetId)) {
+        targetAsset = await Asset.findById(assetId);
+    }
+    if (!targetAsset) {
+        targetAsset = await Asset.findOne({ $or: [{ assetId }, { assetCode: assetId }] });
+    }
+
+    if (!targetAsset) {
+        throw new ApiError(404, "Target asset not found");
+    }
+
+    complaint.assetId = targetAsset._id;
+    if (targetAsset.departmentId) {
+        complaint.assignedDepartment = targetAsset.departmentId;
+    }
+    await complaint.save();
+
+    res.status(200).json({
+        success: true,
+        message: `Complaint linked to Asset ${targetAsset.assetCode}`,
+        data: complaint,
+    });
+});
+
+export {
+    createComplaint,
+    getComplaintById,
+    getComplaintByUser,
+    getComplaintByUserAndCategory,
+    updateComplaintStatus,
+    assignComplaintToDepartment,
+    deleteComplaint,
+    upvoteComplaint,
+    downvoteComplaint,
+    getTrendingComplaints,
+    getNearbyComplaints,
+    searchMyComplaints,
+    reopenComplaint,
+    linkAssetToComplaint,
+};

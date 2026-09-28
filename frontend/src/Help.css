@@ -1,0 +1,750 @@
+/* Help.css */
+
+.help-page {
+    min-height: 100vh;
+    height: auto; /* Allow page to grow with content */
+    background: linear-gradient(135deg, var(--color12) 0%, var(--color18) 25%, var(--color13) 50%, var(--color2) 100%);
+    color: white;
+    padding-top: 80px; /* Spacing for fixed navbar */
+    position: relative;
+    overflow: hidden; /* Hide overflow completely to prevent scrollbars from bubbles */
+}
+
+.help-page::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="50" cy="50" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+    animation: helpGrainAnimation 20s linear infinite;
+    pointer-events: none;
+    z-index: 0;
+}
+
+@keyframes helpGrainAnimation {
+    0%, 100% { transform: translate(0, 0); }
+    10% { transform: translate(-5%, -10%); }
+    20% { transform: translate(-15%, 5%); }
+    30% { transform: translate(7%, -25%); }
+    40% { transform: translate(-5%, 25%); }
+    50% { transform: translate(-15%, 10%); }
+    60% { transform: translate(15%, 0%); }
+    70% { transform: translate(0%, 15%); }
+    80% { transform: translate(3%, 35%); }
+    90% { transform: translate(-10%, 10%); }
+}
+
+/* Hero Section */
+.help-hero {
+    position: relative;
+    min-height: 90vh; /* Smaller fixed height */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 4rem 2rem 4rem; /* Reduced padding */
+    overflow: hidden;
+    z-index: 1; /* Ensure hero content is above the grain animation */
+}
+
+.help-hero-background {
+    position: absolute;
+    inset: 0;
+    overflow: hidden; /* Ensure bubbles don't escape */
+}
+
+.hero-bg-element {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.15;
+    animation: helpFloatContained 20s ease-in-out infinite;
+}
+
+.hero-bg-element:nth-child(1) {
+    width: 300px;
+    height: 300px;
+    background: linear-gradient(135deg, var(--color3), var(--color8));
+    top: 5%;
+    left: 5%;
+    animation-delay: 0s;
+}
+
+.hero-bg-element:nth-child(2) {
+    width: 400px;
+    height: 400px;
+    background: linear-gradient(135deg, var(--color8), var(--color3));
+    bottom: 5%;
+    right: 5%;
+    animation-delay: 7s;
+}
+
+.hero-bg-element:nth-child(3) {
+    width: 280px;
+    height: 280px;
+    background: linear-gradient(135deg, var(--color3), var(--color6));
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    animation-delay: 14s;
+}
+
+@keyframes helpFloatContained {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(-15px, -15px) scale(1.05); }
+    66% { transform: translate(15px, 15px) scale(0.95); }
+}
+
+.help-hero-content {
+    position: relative;
+    z-index: 1;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.hero-icon-container {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 2rem;
+    background: linear-gradient(135deg, var(--color3), var(--color8));
+    border-radius: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 20px 60px color-mix(in srgb, var(--color3) 40%, transparent);
+    animation: helpIconPulse 2s ease-in-out infinite;
+}
+
+@keyframes helpIconPulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 20px 60px color-mix(in srgb, var(--color3) 40%, transparent); }
+    50% { transform: scale(1.05); box-shadow: 0 25px 70px color-mix(in srgb, var(--color3) 60%, transparent); }
+}
+
+.help-hero-title {
+    font-size: 3.5rem;
+    font-weight: 800;
+    margin: 0 0 1rem 0;
+    background: linear-gradient(135deg, var(--color9) 0%, var(--color6) 30%, var(--color3) 70%, var(--color8) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.2;
+    text-shadow: 0 0 30px var(--color3);
+}
+
+.help-hero-subtitle {
+    font-size: 1.25rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0 0 3rem 0;
+    line-height: 1.6;
+}
+
+.help-search-container {
+    position: relative;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.help-search-icon {
+    position: absolute;
+    left: 1.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(255, 255, 255, 0.5);
+    pointer-events: none;
+}
+
+.help-search-input {
+    width: 100%;
+    padding: 1.25rem 1.5rem 1.25rem 4rem;
+    background: color-mix(in srgb, var(--color2) 80%, transparent);
+    backdrop-filter: blur(20px);
+    border: 1px solid color-mix(in srgb, var(--color3) 30%, transparent);
+    border-radius: 16px;
+    color: white;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.help-search-input::placeholder {
+    color: var(--color6);
+}
+
+.help-search-input:focus {
+    outline: none;
+    background: color-mix(in srgb, var(--color2) 90%, transparent);
+    border-color: var(--color3);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color3) 20%, transparent);
+}
+
+/* Container */
+.help-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    position: relative;
+    z-index: 1;
+}
+
+/* Section Styles */
+.help-page section {
+    padding: 6rem 0;
+    position: relative;
+    z-index: 1;
+}
+
+.help-section-header {
+    text-align: center;
+    margin-bottom: 4rem;
+}
+
+.help-section-icon {
+    width: 48px;
+    height: 48px;
+    color: var(--color3);
+    margin: 0 auto 1rem;
+    display: block;
+}
+
+.help-section-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin: 0 0 1rem 0;
+    background: linear-gradient(135deg, var(--color9), var(--color3));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.help-section-subtitle {
+    font-size: 1.125rem;
+    color: rgba(255, 255, 255, 0.6);
+    margin: 0;
+}
+
+/* Quick Links */
+.help-quick-links {
+    background: color-mix(in srgb, var(--color1) 30%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--color3) 20%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--color3) 20%, transparent);
+}
+
+.quick-links-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+}
+
+.quick-link-card {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color2) 85%, transparent), color-mix(in srgb, var(--color12) 80%, transparent));
+    backdrop-filter: blur(20px);
+    border: 1px solid color-mix(in srgb, var(--color3) 25%, transparent);
+    border-radius: 1.5rem;
+    padding: 2rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.quick-link-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color3) 15%, transparent), transparent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.quick-link-card:hover::before {
+    opacity: 1;
+}
+
+.quick-link-card.active {
+    background: color-mix(in srgb, var(--color3) 20%, transparent);
+    border-color: var(--color3);
+    box-shadow: 0 8px 32px color-mix(in srgb, var(--color3) 30%, transparent);
+}
+
+.quick-link-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.quick-link-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
+    color: white;
+}
+
+.quick-link-arrow {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    color: rgba(255, 255, 255, 0.4);
+    transition: all 0.3s ease;
+}
+
+.quick-link-card:hover .quick-link-arrow,
+.quick-link-card.active .quick-link-arrow {
+    color: var(--color3);
+    transform: translateX(5px);
+}
+
+/* How It Works */
+.steps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 3rem;
+    position: relative;
+}
+
+.step-card {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color2) 85%, transparent), color-mix(in srgb, var(--color12) 80%, transparent));
+    backdrop-filter: blur(20px);
+    border: 1px solid color-mix(in srgb, var(--color3) 25%, transparent);
+    border-radius: 1.5rem;
+    padding: 2.5rem 2rem;
+    text-align: center;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.step-card:hover {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color2) 95%, transparent), color-mix(in srgb, var(--color12) 90%, transparent));
+    border-color: var(--color3);
+    box-shadow: 0 12px 40px color-mix(in srgb, var(--color3) 25%, transparent);
+}
+
+.step-number {
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, var(--color3), var(--color8));
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1.25rem;
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--color3) 40%, transparent);
+}
+
+.step-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 1.5rem;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.step-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0 0 1rem 0;
+    color: white;
+}
+
+.step-description {
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0;
+    line-height: 1.6;
+}
+
+.step-connector {
+    display: none;
+}
+
+@media (min-width: 768px) {
+    .step-connector {
+        display: block;
+        position: absolute;
+        top: 50%;
+        right: -3rem;
+        transform: translateY(-50%);
+        color: var(--color3);
+        opacity: 0.5;
+    }
+}
+
+/* Features */
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+}
+
+.feature-card {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color2) 85%, transparent), color-mix(in srgb, var(--color12) 80%, transparent));
+    backdrop-filter: blur(20px);
+    border: 1px solid color-mix(in srgb, var(--color3) 25%, transparent);
+    border-radius: 1.5rem;
+    padding: 2rem;
+    transition: all 0.3s ease;
+}
+
+.feature-card:hover {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color2) 95%, transparent), color-mix(in srgb, var(--color12) 90%, transparent));
+    border-color: var(--color3);
+    box-shadow: 0 12px 40px color-mix(in srgb, var(--color3) 25%, transparent);
+}
+
+.feature-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.feature-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 0.75rem 0;
+    color: white;
+}
+
+.feature-description {
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0;
+    line-height: 1.6;
+}
+
+/* FAQ Section */
+.help-faq {
+    background: color-mix(in srgb, var(--color1) 30%, transparent);
+}
+
+.faq-content {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.faq-item {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color2) 85%, transparent), color-mix(in srgb, var(--color12) 80%, transparent));
+    backdrop-filter: blur(20px);
+    border: 1px solid color-mix(in srgb, var(--color3) 25%, transparent);
+    border-radius: 1rem;
+    margin-bottom: 1rem;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.faq-item:hover {
+    border-color: var(--color3);
+}
+
+.faq-question {
+    width: 100%;
+    padding: 1.5rem 2rem;
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 1.125rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    transition: all 0.3s ease;
+}
+
+.faq-question:hover {
+    background: color-mix(in srgb, var(--color3) 10%, transparent);
+}
+
+.faq-question.active {
+    background: color-mix(in srgb, var(--color3) 15%, transparent);
+}
+
+.faq-question-text {
+    flex: 1;
+}
+
+.faq-icon {
+    flex-shrink: 0;
+    color: var(--color3);
+}
+
+.faq-answer {
+    overflow: hidden;
+}
+
+.faq-answer p {
+    padding: 0 2rem 1.5rem 2rem;
+    color: rgba(255, 255, 255, 0.7);
+    line-height: 1.8;
+    margin: 0;
+}
+
+/* Testimonials */
+.help-testimonials {
+    background: color-mix(in srgb, var(--color1) 30%, transparent);
+}
+
+.testimonial-carousel {
+    max-width: 700px;
+    margin: 0 auto;
+    position: relative;
+}
+
+.testimonial-card {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color2) 85%, transparent), color-mix(in srgb, var(--color12) 80%, transparent));
+    backdrop-filter: blur(20px);
+    border: 1px solid color-mix(in srgb, var(--color3) 25%, transparent);
+    border-radius: 2rem;
+    padding: 3rem;
+    text-align: center;
+}
+
+.testimonial-avatar {
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 1.5rem;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 4px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.testimonial-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.testimonial-rating {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.testimonial-text {
+    font-size: 1.125rem;
+    line-height: 1.8;
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0 0 2rem 0;
+    font-style: italic;
+}
+
+.testimonial-name {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem 0;
+    color: white;
+}
+
+.testimonial-role {
+    color: rgba(255, 255, 255, 0.6);
+    margin: 0;
+}
+
+.testimonial-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+.testimonial-btn {
+    width: 48px;
+    height: 48px;
+    background: color-mix(in srgb, var(--color2) 80%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color3) 30%, transparent);
+    border-radius: 50%;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.testimonial-btn:hover {
+    background: color-mix(in srgb, var(--color3) 25%, transparent);
+    border-color: var(--color3);
+    transform: scale(1.1);
+}
+
+.testimonial-dots {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.testimonial-dot {
+    width: 12px;
+    height: 12px;
+    background: rgba(255, 255, 255, 0.3);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    padding: 0;
+}
+
+.testimonial-dot.active {
+    background: var(--color3);
+    width: 32px;
+    border-radius: 6px;
+}
+
+/* Contact */
+.help-contact-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+}
+
+.help-contact-card {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color2) 85%, transparent), color-mix(in srgb, var(--color12) 80%, transparent));
+    backdrop-filter: blur(20px);
+    border: 1px solid color-mix(in srgb, var(--color3) 25%, transparent);
+    border-radius: 1.5rem;
+    padding: 3rem 2rem;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.help-contact-card:hover {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color2) 95%, transparent), color-mix(in srgb, var(--color12) 90%, transparent));
+    border-color: var(--color3);
+    box-shadow: 0 12px 40px color-mix(in srgb, var(--color3) 25%, transparent);
+    transform: translateY(-5px);
+}
+
+.help-contact-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 1.5rem;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.help-contact-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0 0 0.75rem 0;
+    color: white;
+}
+
+.help-contact-description {
+    color: rgba(255, 255, 255, 0.6);
+    margin: 0 0 1.5rem 0;
+}
+
+.help-contact-link {
+    color: var(--color3);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 1.125rem;
+    transition: all 0.3s ease;
+}
+
+.help-contact-link:hover {
+    color: var(--color8);
+    text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .help-hero {
+        padding: 6rem 1.5rem 3rem;
+    }
+
+    .help-hero-title {
+        font-size: 2.5rem;
+    }
+
+    .help-hero-subtitle {
+        font-size: 1rem;
+    }
+
+    .help-container {
+        padding: 0 1.5rem;
+    }
+
+    .help-page section {
+        padding: 4rem 0;
+    }
+
+    .help-section-title {
+        font-size: 2rem;
+    }
+
+    .quick-links-grid,
+    .features-grid,
+    .help-contact-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .steps-grid {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+
+    .step-connector {
+        display: none;
+    }
+
+    .testimonial-card {
+        padding: 2rem 1.5rem;
+    }
+
+    .testimonial-text {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .help-hero-title {
+        font-size: 2rem;
+    }
+
+    .hero-icon-container {
+        width: 80px;
+        height: 80px;
+    }
+
+    .help-section-title {
+        font-size: 1.75rem;
+    }
+
+    .faq-question {
+        padding: 1.25rem 1.5rem;
+        font-size: 1rem;
+    }
+
+    .faq-answer p {
+        padding: 0 1.5rem 1.25rem 1.5rem;
+    }
+}

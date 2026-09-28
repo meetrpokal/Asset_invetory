@@ -1,0 +1,169 @@
+import mongoose from 'mongoose';
+import { Feedback } from './feedback.models.js';
+
+const complaintSchema = new mongoose.Schema({
+    user_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'user',
+    },
+    title: {
+        type: String,
+        required: true,
+    },
+    description: String,
+    roadId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'road',
+        default: null,
+        index: true,
+    },
+    roadProjectId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'roadProject',
+        default: null,
+    },
+    assetId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'asset',
+        default: null,
+        index: true,
+    },
+    status: {
+        type: String,
+        enum: ['pending', 'in_progress', 'resolved', 'rejected', 'reopened', 'SLA_BREACHED', 'ESCALATED'],
+        default: 'pending'
+    },
+    category: {
+        type: String,
+        enum: ['POTHOLE', 'CRACK', 'DAMAGED_SURFACE', 'WATER_LOGGING', 'DRAINAGE', 'ROAD_MARKING', 'TRAFFIC_SAFETY', 'STREET_OBSTRUCTION', 'ACCIDENT_RISK', 'OTHER', 'road', 'Road', 'rail', 'fire', 'cyber', 'police', 'court'],
+        required: true,
+    },
+    severity: {
+        type: String,
+        enum: ['low', 'medium', 'high'],
+        default: 'medium'
+    },
+    reopenedCount: {
+        type: Number,
+        default: 0,
+    },
+    reopenHistory: [
+        {
+            reopenedBy: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'user',
+            },
+            reason: String,
+            reopenedAt: {
+                type: Date,
+                default: Date.now,
+            },
+        }
+    ],
+    category_data_id: {
+        type: String,
+        default: '',
+    },
+    location: {
+        type: { type: String, enum: ['Point'], required: true  },
+        coordinates: {
+            type: [Number],
+            required: true
+        }
+    },
+    address: String,
+    level: {
+        type: Number,
+        min: 1,
+        default: 1,
+    },
+    active: {
+        type: Boolean,
+        default: true,
+    },
+    ai_classification: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'category'
+    },
+    ai_score: Number,
+    evidence_ids: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'evidence'
+    }],
+    upvote: {
+        type: Number,
+        default: 0
+    },
+    downvote: {
+        type: Number,
+        default: 0
+    },
+    votedUsers: [{
+        user: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'user',
+        },
+        vote: {
+            type: String,
+            enum: ["upvote", "downvote"],
+        }
+    }],
+    rejections: [
+        {
+            officer_id: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'user',
+                required: true,
+            },
+            reason: {
+                type: String,
+                required: true,
+            },
+            rejected_at: {
+                type: Date,
+                default: Date.now,
+            },
+        }
+    ],
+    priority: {
+        type: Number,
+        min: 1,
+        max: 10,
+        default: 1,
+    },
+    escalation_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "escalation",
+    },
+    officer_notes: String,
+    assigned_officer_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'user',
+        default: null
+    },
+    feedback_ids: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'feedback',
+        default: null
+    }],
+    assignedDepartment: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "department",
+        default: null,
+    }
+}, { timestamps: true });
+
+// Create geospatial index for location queries
+complaintSchema.index({ location: '2dsphere' });
+
+complaintSchema.pre('deleteOne', { document: true, query: false }, async function(next) {
+    try {
+        await Feedback.deleteMany({ complaint_id: this._id });
+        // console.log("Deleted related feedbacks");
+        next();
+    } catch (err) {
+        next(err);
+    }
+});
+
+export const Complaint = mongoose.model('complaint', complaintSchema);

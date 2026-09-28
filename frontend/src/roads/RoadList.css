@@ -1,0 +1,7 @@
+.road-list-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1A1C23 0%, #111318 50%, #0D0E12 100%);
+  color: #F3F4F6;
+  padding: 2rem 2rem 4rem;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}

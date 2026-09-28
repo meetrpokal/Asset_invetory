@@ -1,0 +1,40 @@
+.mnt-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1A1C23 0%, #111318 50%, #0D0E12 100%);
+  color: #F3F4F6;
+  padding: 2rem 2rem 4rem;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.mnt-header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.mnt-title-area h1 {
+  font-size: 2.2rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 50%, #FBBF24 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 0 0 0.4rem 0;
+}
+
+.mnt-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.mnt-table-card {
+  background: rgba(31, 41, 55, 0.55);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 1.5rem;
+}

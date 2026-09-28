@@ -1,0 +1,1058 @@
+import React, { useState, useEffect, useRef } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { useNavigate, Link, useLocation } from "react-router-dom";
+import { useInView } from "react-intersection-observer";
+import { useMyComplaintsCache } from "./hooks/useMyComplaintsCache.jsx";
+import toast from 'react-hot-toast';
+import { 
+  FiThumbsUp, 
+  FiThumbsDown, 
+  FiMessageCircle, 
+  FiExternalLink
+} from 'react-icons/fi';
+import { 
+  MdLocalFireDepartment,
+  MdBalance,
+  MdLocalHospital,
+  MdWater,
+  MdConstruction,
+  MdWarning,
+  MdElectricalServices,
+  MdTrain,
+  MdDirectionsRailway
+} from 'react-icons/md';
+import CommentModal from "./CommentModal.jsx";
+import { 
+    getUserComplaints,
+    upvoteComplaint,
+    downvoteComplaint,
+    updateComplaintStatus,
+    deleteComplaint,
+    addComment,
+    fetchComments,
+    updateComment,
+    removeComment,
+    clearError
+} from './auth/redux/complaintSlice';
+import './MyComplaintsPagination.css';
+
+function MyComplaints() {
+    const dispatch = useDispatch();
+    const navigate = useNavigate();
+    const location = useLocation();
+    const { isAuthenticated, user } = useSelector((state) => state.auth);
+    
+    // Mobile detection for pagination
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+    
+    // Mobile pagination state
+    const [currentMobilePage, setCurrentMobilePage] = useState(0); // 0-indexed page number
+    
+    // State for complaint management
+    const [expandedComments, setExpandedComments] = useState({});
+    const [votingInProgress, setVotingInProgress] = useState({});
+    const [statusUpdateInProgress, setStatusUpdateInProgress] = useState({});
+    const [statusModalOpen, setStatusModalOpen] = useState(false);
+    const [selectedComplaintForStatus, setSelectedComplaintForStatus] = useState(null);
+    const [scrollPosition, setScrollPosition] = useState(0);
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [selectedComplaintForDelete, setSelectedComplaintForDelete] = useState(null);
+    const [deleteInProgress, setDeleteInProgress] = useState({});
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('all');
+    const [commentModalOpen, setCommentModalOpen] = useState(false);
+    const [selectedComplaintForComments, setSelectedComplaintForComments] = useState(null);
+    const [newComment, setNewComment] = useState('');
+    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+    const [previousData, setPreviousData] = useState(null);
+    const [showingPreviousData, setShowingPreviousData] = useState(false);
+    
+    // Ref for search input to maintain focus
+    const searchInputRef = useRef(null);
+    
+    // Ref for MyComplaints section to scroll to on page change
+    const myComplaintsRef = useRef(null);
+    
+    // Debounce search query to avoid too many API calls
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearchQuery(searchQuery);
+        }, 500); // 500ms debounce delay
+        
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+    
+    // Handle window resize for mobile detection
+    useEffect(() => {
+        const handleResize = () => {
+            setIsMobile(window.innerWidth <= 768);
+        };
+        
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+    
+    // Use the infinite query hook with selected category and search query
+    const { 
+        data, 
+        fetchNextPage, 
+        hasNextPage, 
+        isFetchingNextPage, 
+        status, 
+        error,
+        interactionCount,
+        recordInteraction,
+        clearCacheAndRefetch,
+        isUsingCache,
+        interactionsRemaining,
+        totalCount,
+        isLoading,
+        isFetching
+    } = useMyComplaintsCache(selectedCategory, debouncedSearchQuery);
+
+    const categories = [
+        { value: 'rail', label: 'Rail Incidents', icon: <MdTrain />, color: '#f59e0b' },
+        { value: 'road', label: 'Road Issues', icon: <MdConstruction />, color: '#db2777' },
+        { value: 'fire', label: 'Fire Emergency', icon: <MdLocalFireDepartment />, color: '#ef4444' },
+        { value: 'cyber', label: 'Cyber Crime', icon: <MdWarning />, color: '#8b5cf6' },
+        { value: 'police', label: 'Police', icon: <MdWarning />, color: '#3b82f6' },
+        { value: 'court', label: 'Court', icon: <MdBalance />, color: '#10b981' }
+    ];
+
+    // Intersection observer for infinite scrolling (desktop only)
+    const { ref } = useInView({
+        threshold: 1,
+        onChange: (inView) => {
+            // Only trigger infinite scroll on desktop
+            if (!isMobile && inView && hasNextPage && !isFetchingNextPage) {
+                fetchNextPage();
+            }
+        },
+    });
+
+    // Get complaints based on device type
+    // Mobile: Show only current page (9 complaints)
+    // Desktop: Show all loaded pages (infinite scroll)
+    const allComplaints = data?.pages?.flatMap(page => page.complaints) || [];
+    const mobileComplaints = (isMobile && data?.pages?.[currentMobilePage]) 
+        ? data.pages[currentMobilePage].complaints || [] 
+        : [];
+
+    // Handle search results - preserve previous data if new search returns empty
+    useEffect(() => {
+        if (data && data.pages && data.pages.length > 0) {
+            const currentComplaints = data.pages.flatMap(page => page.complaints);
+            
+            // If searching and got no results, show toast and keep previous data
+            if (debouncedSearchQuery && currentComplaints.length === 0 && previousData && previousData.length > 0) {
+                if (!showingPreviousData) {
+                    toast.error(`No complaints found matching "${debouncedSearchQuery}"`, {
+                        duration: 3000,
+                        position: 'top-center',
+                    });
+                    setShowingPreviousData(true);
+                    
+                    // Restore focus to search input after showing error
+                    setTimeout(() => {
+                        if (searchInputRef.current) {
+                            searchInputRef.current.focus();
+                        }
+                    }, 100);
+                }
+            } else {
+                // Update previous data with new results if we have data
+                // Only update if the data actually changed to prevent infinite loops
+                if (currentComplaints.length > 0) {
+                    const currentIds = currentComplaints.map(c => c._id).join(',');
+                    const previousIds = previousData?.map(c => c._id).join(',') || '';
+                    
+                    if (currentIds !== previousIds) {
+                        setPreviousData(currentComplaints);
+                    }
+                    if (showingPreviousData) {
+                        setShowingPreviousData(false);
+                    }
+                }
+            }
+        }
+    }, [data, debouncedSearchQuery, showingPreviousData, previousData]);
+
+    // Use previous data if showing previous, otherwise use current data
+    // On mobile: show only current page, on desktop: show all loaded pages
+    const displayComplaints = showingPreviousData && previousData 
+        ? previousData 
+        : (isMobile ? mobileComplaints : allComplaints);
+
+    // For display counts:
+    // - currentlyLoaded: number of complaints currently shown in the UI
+    // - totalAvailable: total matching complaints in database (from API)
+    const currentlyLoaded = displayComplaints.length;
+    const totalAvailable = showingPreviousData 
+        ? previousData.length  // When showing previous, that's all we have
+        : (totalCount || 0);    // Otherwise use the API total count
+
+    // Fetch comments for visible complaints when data loads
+    useEffect(() => {
+        if (allComplaints.length > 0) {
+            // console.log('Loading comments for visible complaints...', allComplaints.length);
+            allComplaints.forEach((complaint) => {
+                if (complaint._id) {
+                    dispatch(fetchComments(complaint._id)).catch((err) => {
+                        console.warn(`Failed to load comments for complaint ${complaint._id}:`, err);
+                    });
+                }
+            });
+        }
+    }, [data?.pages?.length]); // Only trigger when new pages are loaded
+
+    // Reset mobile page and scroll when category or search query changes
+    useEffect(() => {
+        setCurrentMobilePage(0);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, [selectedCategory, debouncedSearchQuery]);
+
+    // Handle ESC key to close modals
+    useEffect(() => {
+        const handleEscKey = (event) => {
+            if (event.key === 'Escape') {
+                if (statusModalOpen) {
+                    closeStatusModal();
+                } else if (deleteModalOpen) {
+                    closeDeleteModal();
+                } else if (commentModalOpen) {
+                    closeCommentModal();
+                }
+            }
+        };
+
+        document.addEventListener('keydown', handleEscKey);
+        return () => {
+            document.removeEventListener('keydown', handleEscKey);
+        };
+    }, [statusModalOpen, deleteModalOpen, commentModalOpen]);
+
+    // Helper functions
+    const getStatusBadgeClass = (status) => {
+        switch (status?.toLowerCase()) {
+            case 'pending': return 'status-pending';
+            case 'in-progress': case 'in_progress': return 'status-in-progress';
+            case 'resolved': return 'status-resolved';
+            case 'rejected': return 'status-rejected';
+            default: return 'status-pending';
+        }
+    };
+
+    const mapStatusToBackend = (frontendStatus) => {
+        const statusMap = {
+            'pending': 'pending',
+            'in-progress': 'in_progress',
+            'resolved': 'resolved',
+            'rejected': 'rejected'
+        };
+        return statusMap[frontendStatus] || frontendStatus;
+    };
+
+    const mapStatusToFrontend = (backendStatus) => {
+        const statusMap = {
+            'pending': 'pending',
+            'in_progress': 'in-progress',
+            'resolved': 'resolved',
+            'rejected': 'rejected'
+        };
+        return statusMap[backendStatus] || backendStatus;
+    };
+
+    const formatDate = (dateString) => {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffInSeconds = Math.floor((now - date) / 1000);
+        const diffInMinutes = Math.floor(diffInSeconds / 60);
+        const diffInHours = Math.floor(diffInMinutes / 60);
+        const diffInDays = Math.floor(diffInHours / 24);
+
+        if (diffInSeconds < 60) {
+            return `${diffInSeconds} seconds ago`;
+        } else if (diffInMinutes < 60) {
+            return `${diffInMinutes} minute${diffInMinutes !== 1 ? 's' : ''} ago`;
+        } else if (diffInHours < 24) {
+            return `${diffInHours} hour${diffInHours !== 1 ? 's' : ''} ago`;
+        } else if (diffInDays < 7) {
+            return `${diffInDays} day${diffInDays !== 1 ? 's' : ''} ago`;
+        } else {
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        }
+    };
+
+    const getCategoryIcon = (category) => {
+        const categoryObj = categories.find(cat => cat.value === category);
+        return categoryObj ? categoryObj.icon : <MdWarning />;
+    };
+
+    const getCategoryColor = (category) => {
+        const categoryObj = categories.find(cat => cat.value === category);
+        return categoryObj ? categoryObj.color : '#6b7280';
+    };
+
+    const getSeverityInfo = (severity) => {
+        switch (severity?.toLowerCase()) {
+            case 'low':
+                return {
+                    label: 'Low',
+                    icon: '🟢',
+                    color: '#10b981',
+                    bgColor: 'rgba(16, 185, 129, 0.1)',
+                    borderColor: 'rgba(16, 185, 129, 0.3)'
+                };
+            case 'medium':
+                return {
+                    label: 'Medium',
+                    icon: '🟡',
+                    color: '#f59e0b',
+                    bgColor: 'rgba(245, 158, 11, 0.1)',
+                    borderColor: 'rgba(245, 158, 11, 0.3)'
+                };
+            case 'high':
+                return {
+                    label: 'High',
+                    icon: '🔴',
+                    color: '#ef4444',
+                    bgColor: 'rgba(239, 68, 68, 0.1)',
+                    borderColor: 'rgba(239, 68, 68, 0.3)'
+                };
+            default:
+                return {
+                    label: 'Medium',
+                    icon: '🟡',
+                    color: '#f59e0b',
+                    bgColor: 'rgba(245, 158, 11, 0.1)',
+                    borderColor: 'rgba(245, 158, 11, 0.3)'
+                };
+        }
+    };
+
+    // Action handlers
+    const handleUpvote = async (complaintId) => {
+        if (votingInProgress[complaintId]) return;
+        
+        setVotingInProgress(prev => ({ ...prev, [complaintId]: true }));
+        try {
+            await dispatch(upvoteComplaint(complaintId));
+            recordInteraction(); // Track interaction for cache management
+        } finally {
+            setVotingInProgress(prev => ({ ...prev, [complaintId]: false }));
+        }
+    };
+
+    const handleDownvote = async (complaintId) => {
+        if (votingInProgress[complaintId]) return;
+        
+        setVotingInProgress(prev => ({ ...prev, [complaintId]: true }));
+        try {
+            await dispatch(downvoteComplaint(complaintId));
+            recordInteraction(); // Track interaction for cache management
+        } finally {
+            setVotingInProgress(prev => ({ ...prev, [complaintId]: false }));
+        }
+    };
+
+    const closeStatusModal = () => {
+        setStatusModalOpen(false);
+        setSelectedComplaintForStatus(null);
+        document.body.style.overflow = 'unset';
+        window.scrollTo(0, scrollPosition);
+    };
+
+    const openDeleteModal = (complaint) => {
+        setSelectedComplaintForDelete(complaint);
+        setDeleteModalOpen(true);
+        setScrollPosition(window.pageYOffset);
+        document.body.style.overflow = 'hidden';
+    };
+
+    const closeDeleteModal = () => {
+        setDeleteModalOpen(false);
+        setSelectedComplaintForDelete(null);
+        document.body.style.overflow = 'unset';
+        window.scrollTo(0, scrollPosition);
+    };
+
+    const handleDeleteComplaint = async (complaintId) => {
+        setDeleteInProgress(prev => ({ ...prev, [complaintId]: true }));
+        try {
+            await dispatch(deleteComplaint(complaintId));
+        } finally {
+            setDeleteInProgress(prev => ({ ...prev, [complaintId]: false }));
+            closeDeleteModal();
+        }
+    };
+
+    const openCommentModal = (complaint) => {
+        setSelectedComplaintForComments(complaint);
+        setCommentModalOpen(true);
+        setScrollPosition(window.pageYOffset);
+        document.body.style.overflow = 'hidden';
+    };
+
+    const closeCommentModal = () => {
+        setCommentModalOpen(false);
+        setSelectedComplaintForComments(null);
+        setNewComment('');
+        setCommentRating(5);
+        setEditingComment(null);
+        setEditedCommentText('');
+        setEditedCommentRating(5);
+        document.body.style.overflow = 'unset';
+        window.scrollTo(0, scrollPosition);
+    };
+
+    const handleModalCommentSubmit = async (commentData) => {
+        if (!selectedComplaintForComments) return;
+        
+        await dispatch(addComment({
+            complaintId: selectedComplaintForComments._id,
+            ...commentData
+        }));
+    };
+
+    const handleModalCommentUpdate = async (commentId, updateData) => {
+        await dispatch(updateComment({
+            commentId,
+            ...updateData
+        }));
+    };
+
+    const handleModalCommentDelete = async (commentId) => {
+        await dispatch(removeComment(commentId));
+    };
+
+    // Mobile pagination functions
+    const scrollToMyComplaints = () => {
+        if (myComplaintsRef.current) {
+            myComplaintsRef.current.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start' 
+            });
+        }
+    };
+
+    const goToPage = async (pageIndex) => {
+        // If the page hasn't been loaded yet, fetch it
+        if (pageIndex >= (data?.pages?.length || 0) && hasNextPage) {
+            await fetchNextPage();
+        }
+        setCurrentMobilePage(pageIndex);
+        scrollToMyComplaints();
+    };
+
+    const goToPrevPage = () => {
+        if (currentMobilePage > 0) {
+            setCurrentMobilePage(currentMobilePage - 1);
+            scrollToMyComplaints();
+        }
+    };
+
+    const goToNextPage = async () => {
+        const totalLoadedPages = data?.pages?.length || 0;
+        const nextPage = currentMobilePage + 1;
+        
+        // If next page exists in loaded data, go to it
+        if (nextPage < totalLoadedPages) {
+            setCurrentMobilePage(nextPage);
+            scrollToMyComplaints();
+        } 
+        // If next page hasn't been loaded yet but more pages exist, fetch it
+        else if (hasNextPage && !isFetchingNextPage) {
+            await fetchNextPage();
+            setCurrentMobilePage(nextPage);
+            scrollToMyComplaints();
+        }
+    };
+
+    const highlightText = (text, searchQuery) => {
+        if (!searchQuery.trim()) return text;
+        
+        const regex = new RegExp(`(${searchQuery})`, 'gi');
+        const parts = text.split(regex);
+        
+        return parts.map((part, index) => 
+            regex.test(part) ? (
+                <mark key={index} className="my-complaints-search-highlight">{part}</mark>
+            ) : part
+        );
+    };
+
+    // Use display complaints (which may be previous data if search returned empty)
+    const filteredComplaints = displayComplaints;
+
+    // Early returns for auth check
+    if (!isAuthenticated) {
+        return (
+            <div className="my-complaints-profile-card">
+                <div className="my-complaints-empty-state">
+                    <div className="my-complaints-empty-icon">🔐</div>
+                    <h3>Authentication Required</h3>
+                    <p>Please log in to view your complaints</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Check if user is an officer
+    const isOfficer = user?.role === 'officer';
+
+    return (
+        <>
+            <div className="my-complaints-profile-card" ref={myComplaintsRef}>
+                <div className="my-complaints-section-header">
+                    <h2 className="my-complaints-section-title">
+                        {isOfficer ? 'My Accepted Cases' : 'My Complaints'}
+                    </h2>
+                    <p className="my-complaints-section-subtitle">
+                        {isOfficer 
+                            ? 'Manage and track complaints you have accepted' 
+                            : 'Track the status of your submitted complaints'}
+                    </p>
+                </div>
+
+                {/* Initial Loading State */}
+                {isLoading && !data ? (
+                    <div className="my-complaints-loading-container">
+                        <div className="spinner"></div>
+                        <p>Loading your complaints...</p>
+                    </div>
+                ) : status === "error" ? (
+                    /* Error State */
+                    <div className="my-complaints-error-state">
+                        <div className="my-complaints-error-icon">⚠️</div>
+                        <h3>Error Loading Complaints</h3>
+                        <p>{error?.message || "Failed to load your complaints. Please try again."}</p>
+                        <button 
+                            className="my-complaints-retry-button"
+                            onClick={() => clearCacheAndRefetch()}
+                        >
+                            Retry
+                        </button>
+                    </div>
+                ) : (!isFetching && !showingPreviousData && (!data || !data.pages || data.pages.length === 0 || displayComplaints.length === 0)) ? (
+                    /* Empty State - No complaints at all */
+                    <div className="my-complaints-empty-state">
+                        <div className="my-complaints-empty-icon">📋</div>
+                        <h3>{isOfficer ? 'No Accepted Cases' : 'No Complaints Yet'}</h3>
+                        <p>
+                            {isOfficer 
+                                ? 'You haven\'t accepted any complaints yet. Check nearby complaints to get started!' 
+                                : 'You haven\'t submitted any complaints yet. Start by creating one!'}
+                        </p>
+                    </div>
+                ) : (
+                    /* Main Content - Complaints List */
+                    <div className="my-complaints-list">
+                    {/* Removed loading overlay - data updates seamlessly in background */}
+                    
+                    {/* Search and Filter Section */}
+                    {displayComplaints.length > 0 && (
+                        <div className="my-complaints-search-filter-section">
+                            <div className="my-complaints-search-bar-container">
+                                <div className="my-complaints-search-input-wrapper">
+                                    <svg className="my-complaints-search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                    <input
+                                        ref={searchInputRef}
+                                        type="text"
+                                        className="my-complaints-search-input"
+                                        placeholder="Search complaints by title or description..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                    />
+                                    {searchQuery && (
+                                        <button 
+                                            className="my-complaints-clear-search-btn"
+                                            onClick={() => {
+                                                setSearchQuery('');
+                                                setShowingPreviousData(false);
+                                                // Restore focus to search input after clearing
+                                                setTimeout(() => {
+                                                    if (searchInputRef.current) {
+                                                        searchInputRef.current.focus();
+                                                    }
+                                                }, 0);
+                                            }}
+                                        >
+                                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="my-complaints-category-filter-wrapper">
+                                    <select
+                                        className="my-complaints-category-filter"
+                                        value={selectedCategory}
+                                        onChange={(e) => setSelectedCategory(e.target.value)}
+                                    >
+                                        <option value="all">All Categories</option>
+                                        {categories.map(category => (
+                                            <option key={category.value} value={category.value}>
+                                                {category.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            {/* Results Summary */}
+                            <div className="my-complaints-results-summary">
+                                <span className="my-complaints-results-count">
+                                    Showing {currentlyLoaded} of {totalAvailable} {isOfficer ? 'cases' : 'complaints'}
+                                    {selectedCategory !== 'all' && (
+                                        <span className="my-complaints-category-indicator">
+                                            {' '}in {categories.find(c => c.value === selectedCategory)?.label || selectedCategory}
+                                        </span>
+                                    )}
+                                </span>
+                                {(searchQuery || selectedCategory !== 'all') && (
+                                    <button 
+                                        className="my-complaints-clear-filters-btn"
+                                        onClick={() => {
+                                            setSearchQuery('');
+                                            setSelectedCategory('all');
+                                            setShowingPreviousData(false);
+                                        }}
+                                    >
+                                        Clear Filters
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Show notification banner if displaying previous data due to empty search */}
+                    {showingPreviousData && (
+                        <div style={{
+                            padding: '1rem',
+                            margin: '1rem 0',
+                            backgroundColor: '#fff3cd',
+                            border: '1px solid #ffc107',
+                            borderRadius: '8px',
+                            color: '#856404',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem'
+                        }}>
+                            <svg style={{ width: '20px', height: '20px' }} fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                            <span>No results found for "{debouncedSearchQuery}". Showing previous results.</span>
+                        </div>
+                    )}
+
+                    <Link
+                        className="btn-create-complaint-user-profile my-complaint-card"
+                        style={{
+                            width: '100%',
+                            height: '8rem',
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            cursor: 'pointer',
+                            border: 'none',
+                            fontSize: '1.5rem',
+                            fontWeight: '600',
+                            color: '#fff',
+                            transition: 'all 0.3s ease',
+                            textDecoration: 'none'
+                        }}
+                        to="/complain"
+                        // onClick={() => {
+                        //     window.location.href = '/complain';
+                        // }}
+                    >
+                        <svg 
+                            style={{ width: '2rem', height: '2rem', marginRight: '0.5rem' }} 
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Create New Complaint
+                    </Link>
+                    <div className="my-complaints-grid">
+
+                            {filteredComplaints.map((complaint, index) => (
+                                <div key={complaint._id || index} className="my-complaint-card">
+                                    <div className="my-complaint-card-header">
+                                        <div className="my-complaint-card-header-left">
+                                            <div className="my-complaint-category">
+                                                <span 
+                                                    className="my-category-icon-display"
+                                                    style={{ color: getCategoryColor(complaint.category) }}
+                                                >
+                                                    {getCategoryIcon(complaint.category)}
+                                                </span>
+                                                <span className="my-category-name">
+                                                    {categories.find(cat => cat.value === complaint.category)?.label || complaint.category}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="my-card-header-right">
+                                            <span className={`my-status-badge ${getStatusBadgeClass(complaint.status)}`}>
+                                                {mapStatusToFrontend(complaint.status).replace('-', ' ').toUpperCase()}
+                                            </span>
+                                            <button
+                                                className="my-delete-btn-icon"
+                                                onClick={() => openDeleteModal(complaint)}
+                                                disabled={deleteInProgress[complaint._id]}
+                                                title="Delete Complaint"
+                                            >
+                                                {deleteInProgress[complaint._id] ? (
+                                                    <div className="btn-spinner-small"></div>
+                                                ) : (
+                                                    <svg className="my-delete-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                )}
+                                            </button>
+                                            <Link
+                                                to={`/complaint/${complaint._id}`}
+                                                className="my-visit-btn-icon"
+                                                title="Visit Complaint Details"
+                                            >
+                                                <FiExternalLink className="my-delete-icon" />
+                                            </Link>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="my-complaint-card-body">
+                                        <div className="my-complaint-title-section">
+                                            <h4 className="my-complaint-title-display">
+                                                {searchQuery ? highlightText(complaint.title, searchQuery) : complaint.title}
+                                            </h4>
+                                            
+                                            {/* Severity Display */}
+                                            {complaint.severity && (
+                                                <div className="my-complaint-severity">
+                                                    <div 
+                                                        className="my-severity-badge-display"
+                                                        style={{
+                                                            color: getSeverityInfo(complaint.severity).color,
+                                                            backgroundColor: getSeverityInfo(complaint.severity).bgColor,
+                                                            border: `1px solid ${getSeverityInfo(complaint.severity).borderColor}`
+                                                        }}
+                                                    >
+                                                        <span className="my-severity-icon-display" style={{ color: getSeverityInfo(complaint.severity).color }}>
+                                                            {getSeverityInfo(complaint.severity).icon}
+                                                        </span>
+                                                        <span className="my-severity-text">
+                                                            {getSeverityInfo(complaint.severity).label}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <p className="my-complaint-description-display">
+                                            {searchQuery ? highlightText(complaint.description, searchQuery) : complaint.description}
+                                        </p>
+                                        
+                                        {complaint.address && (
+                                            <div className="my-complaint-location">
+                                                <svg className="my-location-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                </svg>
+                                                <span>{complaint.address}</span>
+                                            </div>
+                                        )}
+
+                                        {/* Rail specific train meta */}
+                                        {complaint.category === 'rail' && complaint.category_specific_data && (
+                                            <div className="my-rail-train-meta">
+                                                <div className="my-train-header-line">
+                                                    <div className="my-train-title-wrap">
+                                                        <span className="my-train-emoji" role="img" aria-label="train details"><MdDirectionsRailway /></span>
+                                                        <span className="my-train-name-text">{complaint.category_specific_data.train_name || complaint.category_specific_data.trainNumber || complaint.category_data_id}</span>
+                                                        <span className="my-train-number-pill">{complaint.category_specific_data.train_number || complaint.category_data_id}</span>
+                                                    </div>
+                                                    {complaint.category_specific_data.train_type && (
+                                                        <span className="my-train-type-badge" title="Train Type">{complaint.category_specific_data.train_type.replace(/_/g,' ')}</span>
+                                                    )}
+                                                </div>
+                                                <div className="my-train-route-grid">
+                                                    {(complaint.category_specific_data.routes?.from_station) && (
+                                                        <div className="my-route-segment from">
+                                                            <div className="my-seg-label">Origin</div>
+                                                            <div className="my-seg-station">
+                                                                <span className="my-station-name origin-name">{complaint.category_specific_data.routes.from_station.name}</span>
+                                                                <span className="my-code origin-code">({complaint.category_specific_data.routes.from_station.code})</span>
+                                                            </div>
+                                                            {complaint.category_specific_data.routes.from_station.time && (
+                                                                <div className="my-seg-time">Dep: {complaint.category_specific_data.routes.from_station.time.replace('.', ':')}</div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    {(complaint.category_specific_data.routes?.to_station) && (
+                                                        <div className="my-route-segment to">
+                                                            <div className="my-seg-label">Destination</div>
+                                                            <div className="my-seg-station">
+                                                                <span className="my-station-name destination-name">{complaint.category_specific_data.routes.to_station.name}</span>
+                                                                <span className="my-code destination-code">({complaint.category_specific_data.routes.to_station.code})</span>
+                                                            </div>
+                                                            {complaint.category_specific_data.routes.to_station.time && (
+                                                                <div className="my-seg-time">Arr: {complaint.category_specific_data.routes.to_station.time.replace('.', ':')}</div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Complaint Meta Info */}
+                                        <div className="my-complaint-meta">
+                                            <span className="my-complaint-date">
+                                                {formatDate(complaint.createdAt)}
+                                            </span>
+                                            <div className="my-complaint-actions">
+                                                <button
+                                                    className={`my-action-btn upvote ${complaint.userVote === 'upvote' ? 'voted' : ''}`}
+                                                    onClick={() => handleUpvote(complaint._id)}
+                                                    disabled={votingInProgress[complaint._id]}
+                                                    title="Upvote"
+                                                >
+                                                    <FiThumbsUp />
+                                                    <span>{complaint.upvote || 0}</span>
+                                                </button>
+                                                
+                                                <button
+                                                    className={`my-action-btn downvote ${complaint.userVote === 'downvote' ? 'voted' : ''}`}
+                                                    onClick={() => handleDownvote(complaint._id)}
+                                                    disabled={votingInProgress[complaint._id]}
+                                                    title="Downvote"
+                                                >
+                                                    <FiThumbsDown />
+                                                    <span>{complaint.downvote || 0}</span>
+                                                </button>
+                                                
+                                                <button
+                                                    className="my-action-btn comments"
+                                                    onClick={() => openCommentModal(complaint)}
+                                                    title="View Comments"
+                                                >
+                                                    <FiMessageCircle />
+                                                    <span>{complaint.comments?.length || 0}</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                    </div>
+
+                    {/* Desktop: Infinite Scroll Loading Indicator */}
+                    {!isMobile && hasNextPage && (
+                        <div ref={ref} className="my-complaints-loading-more-container">
+                            {isFetchingNextPage ? (
+                                <div className="my-complaints-loading-more">
+                                    <div className="my-complaints-spinner-small"></div>
+                                    <p>Loading more complaints...</p>
+                                </div>
+                            ) : (
+                                <div className="my-complaints-load-more-trigger">
+                                    <p>Scroll to load more</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    
+                    {/* Mobile: Static Pagination */}
+                    {isMobile && displayComplaints.length > 0 && (
+                        <div className="my-complaints-pagination-container">
+                            <button
+                                className="pagination-btn prev"
+                                onClick={goToPrevPage}
+                                disabled={currentMobilePage === 0 || isFetchingNextPage}
+                            >
+                                Prev
+                            </button>
+                            
+                            <div className="pagination-pages">
+                                {(() => {
+                                    const totalLoadedPages = data?.pages?.length || 0;
+                                    const pages = [];
+                                    const maxVisiblePages = 5;
+                                    
+                                    // Calculate range of pages to show
+                                    let startPage = Math.max(0, currentMobilePage - 2);
+                                    let endPage = Math.min(totalLoadedPages - 1, startPage + maxVisiblePages - 1);
+                                    
+                                    // Adjust start if we're near the end
+                                    if (endPage - startPage < maxVisiblePages - 1) {
+                                        startPage = Math.max(0, endPage - maxVisiblePages + 1);
+                                    }
+                                    
+                                    // Show first page if not in range
+                                    if (startPage > 0) {
+                                        pages.push(
+                                            <button
+                                                key={0}
+                                                className="pagination-page-btn"
+                                                onClick={() => goToPage(0)}
+                                                disabled={isFetchingNextPage}
+                                            >
+                                                1
+                                            </button>
+                                        );
+                                        if (startPage > 1) {
+                                            pages.push(
+                                                <span key="ellipsis-start" className="pagination-ellipsis">
+                                                    ...
+                                                </span>
+                                            );
+                                        }
+                                    }
+                                    
+                                    // Show page range
+                                    for (let i = startPage; i <= endPage; i++) {
+                                        pages.push(
+                                            <button
+                                                key={i}
+                                                className={`pagination-page-btn ${i === currentMobilePage ? 'active' : ''}`}
+                                                onClick={() => goToPage(i)}
+                                                disabled={isFetchingNextPage}
+                                            >
+                                                {i + 1}
+                                            </button>
+                                        );
+                                    }
+                                    
+                                    // Show ellipsis and next indicator if more pages available
+                                    if (hasNextPage) {
+                                        pages.push(
+                                            <span key="ellipsis-end" className="pagination-ellipsis">
+                                                ...
+                                            </span>
+                                        );
+                                    }
+                                    
+                                    return pages;
+                                })()}
+                                
+                                {isFetchingNextPage && (
+                                    <div className="pagination-loading">
+                                        <div className="my-complaints-spinner-small"></div>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <button
+                                className="pagination-btn next"
+                                onClick={goToNextPage}
+                                disabled={(!hasNextPage && currentMobilePage >= (data?.pages?.length || 1) - 1) || isFetchingNextPage}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    )}
+
+                    {/* End of list indicator */}
+                    {!hasNextPage && displayComplaints.length > 0 && (
+                        <div className="my-complaints-end-of-list">
+                            <p>You've reached the end of your {isOfficer ? 'accepted cases' : 'complaints'}</p>
+                        </div>
+                    )}
+                </div>
+                )}
+
+                {/* Delete Confirmation Modal */}
+                {deleteModalOpen && selectedComplaintForDelete && (
+                    <div className="my-delete-modal-overlay" onClick={closeDeleteModal}>
+                        <div className="my-delete-modal" onClick={(e) => e.stopPropagation()}>
+                            <div className="my-delete-modal-header">
+                                <h3 className="my-delete-modal-title">Delete Complaint</h3>
+                                <button className="my-delete-modal-close-btn" onClick={closeDeleteModal}>
+                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                            
+                            <div className="my-delete-modal-content">
+                                <div className="my-delete-modal-icon">
+                                    <svg className="my-delete-warning-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                </div>
+                                
+                                <div className="my-delete-confirmation-content">
+                                    <h4 className="my-delete-complaint-title">{selectedComplaintForDelete.title}</h4>
+                                    <p className="my-delete-warning-text">
+                                        Are you sure you want to delete this complaint? This action cannot be undone.
+                                    </p>
+                                    
+                                    <div className="my-delete-actions">
+                                        <button
+                                            className="my-cancel-delete-btn"
+                                            onClick={closeDeleteModal}
+                                            disabled={deleteInProgress[selectedComplaintForDelete._id]}
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            className="my-confirm-delete-btn"
+                                            onClick={() => handleDeleteComplaint(selectedComplaintForDelete._id)}
+                                            disabled={deleteInProgress[selectedComplaintForDelete._id]}
+                                        >
+                                            {deleteInProgress[selectedComplaintForDelete._id] ? (
+                                                <>
+                                                    <div className="btn-spinner"></div>
+                                                    <span>Deleting...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg className="my-delete-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                    <span>Delete Complaint</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Comment Modal */}
+                <CommentModal
+                    complaintId={selectedComplaintForComments?._id}
+                    complaintTitle={selectedComplaintForComments?.title}
+                    complaintCategory={selectedComplaintForComments?.category}
+                    complaintType={selectedComplaintForComments?.type}
+                    isOpen={commentModalOpen}
+                    onClose={closeCommentModal}
+                    onCommentSubmit={handleModalCommentSubmit}
+                    onCommentUpdate={handleModalCommentUpdate}
+                    onCommentDelete={handleModalCommentDelete}
+                    comments={
+                        selectedComplaintForComments 
+                            ? (displayComplaints.find(c => c._id === selectedComplaintForComments._id)?.comments || [])
+                            : []
+                    }
+                    totalComments={
+                        selectedComplaintForComments 
+                            ? (displayComplaints.find(c => c._id === selectedComplaintForComments._id)?.comments?.length || 0)
+                            : 0
+                    }
+                />
+            </div>
+        </>
+    );
+}
+
+export default MyComplaints;
